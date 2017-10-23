@@ -46,6 +46,17 @@ namespace Trianglex
         public double X;
         public double Y;
 
+        public Vec2()
+        {
+
+        }
+
+        public Vec2(double x, double y)
+        {
+            X = x;
+            Y = y;
+        }
+
         public PointF ToPointF()
         {
             return new PointF((float)X, (float)Y);

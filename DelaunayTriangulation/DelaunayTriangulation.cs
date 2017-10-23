@@ -26,6 +26,9 @@ namespace Trianglex
         //triangulate each division and merge
         public static List<Triangle> Triangulate(List<Vec2> points)
         {
+            if (points.Count < 2)
+                return new List<Triangle>();
+
             var orderedPoints = points.OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
             return Triangulate(orderedPoints, 0, points.Count - 1);
         }

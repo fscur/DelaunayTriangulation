@@ -21,11 +21,11 @@ namespace Trianglex
         List<Vec2> _points;
         List<Triangle> _triangles;
 
-        int _totalPoints = 500;
-
+        int _totalPoints = 1;
+        bool _translating = false;
         float _zoom = 1.0f;
-        PointF _zoomPoint;
-
+        Vec2 _origin = new Vec2();
+        Point _lastMousePosition;
         public Form1()
         {
             InitializeComponent();
@@ -60,33 +60,68 @@ namespace Trianglex
             UpdatePoints();
         }
 
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Middle)
+            {
+                _translating = true;
+                _lastMousePosition = e.Location;
+            }
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            if (_translating)
+            {
+                _origin += new Vec2(
+                    _lastMousePosition.X - e.Location.X,
+                    -(_lastMousePosition.Y - e.Location.Y));
+            }
+
+            _lastMousePosition = e.Location;
+        }
+
         protected override void OnMouseUp(MouseEventArgs e)
         {
-            base.OnMouseUp(e);
-
-            var halfWidth = ClientRectangle.Width * 0.5f;
-            var halfHeight = ClientRectangle.Height * 0.5f;
-            var p = new Vec2()
+            if (_translating)
             {
-                X = Math.Round(e.Location.X - halfWidth),
-                Y = -Math.Round(e.Location.Y - halfHeight)
-            };
-            _points.Add(p);
+                _translating = false;
+            }
+            else
+            {
+                var halfWidth = ClientRectangle.Width * 0.5f;
+                var halfHeight = ClientRectangle.Height * 0.5f;
+                var p = new Vec2(e.Location.X - halfWidth, -(e.Location.Y - halfHeight));
+
+                p += _origin;
+                p *= 1.0/_zoom;
+
+                _points.Add(new Vec2(Math.Round(p.X), Math.Round(p.Y)));
+                _triangles = DelaunayTriangulation.Triangulate(_points);
+            }
         }
 
         protected override void OnMouseWheel(MouseEventArgs e)
         {
-            if (e.Delta > 0)
-                _zoom *= 2.0f;
-            else 
-                _zoom *= 0.5f;
-
             var halfWidth = ClientRectangle.Width * 0.5f;
             var halfHeight = ClientRectangle.Height * 0.5f;
-            _zoomPoint = new PointF(e.Location.X - halfWidth, -(e.Location.Y - halfHeight));
 
-            this.Invalidate();
+            var p = new Vec2(e.Location.X - halfWidth, -(e.Location.Y - halfHeight));
+            p += _origin;
+
+            if (e.Delta > 0)
+            {
+                _zoom *= 2.0f;
+                _origin += p;
+            }
+            else
+            {
+                p *= 1.0 / _zoom;
+                _zoom *= 0.5f;
+                _origin -= (p * _zoom);
+            }
         }
+
         private void UpdatePoints()
         {
             _timer.Stop();
@@ -98,19 +133,24 @@ namespace Trianglex
                 new PointF(-halfWidth, -halfHeight),
                 new SizeF(ClientRectangle.Width, ClientRectangle.Height));
 
-            //for (int i = 0; i < 1; i++)
-            //{
-            //    _points = FillPoints(_totalPoints, bounds);
-            //    _triangles = DelaunayTriangulation.Triangulate(_points);
-            //}
+            for (int i = 0; i < 1; i++)
+            {
+                _points = FillPoints(_totalPoints, bounds);
+                _triangles = DelaunayTriangulation.Triangulate(_points);
+            }
 
-            _points = new List<Vec2>();
-            _points.Add(new Vec2() { X = 0.0, Y = 100.0 });
-            _points.Add(new Vec2() { X = -100.0, Y = 100.0 });
-            _points.Add(new Vec2() { X = -200.0, Y = 100.0 });
-            _points.Add(new Vec2() { X = 100.0, Y = 100.0 });
-            _points.Add(new Vec2() { X = 200.0, Y = 100.0 });
-            _points.Add(new Vec2() { X = 0.0, Y = 200.0 });
+            //_points = new List<Vec2>();
+            //_points.Add(new Vec2() { X = 0.0, Y = 0.0 });
+            //_points.Add(new Vec2() { X = 100.0, Y = 0.0 });
+            //_points.Add(new Vec2() { X = 200.0, Y = 0.0 });
+
+            //_points.Add(new Vec2() { X = 0.0, Y = 100.0 });
+            //_points.Add(new Vec2() { X = -100.0, Y = 100.0 });
+            //_points.Add(new Vec2() { X = -200.0, Y = 100.0 });
+            //_points.Add(new Vec2() { X = 100.0, Y = 100.0 });
+            //_points.Add(new Vec2() { X = 200.0, Y = 100.0 });
+            //_points.Add(new Vec2() { X = 0.0, Y = 200.0 });
+
 
 
             //_points.Add(new Vec2() { X = -100.0, Y = 0.0 });
@@ -170,7 +210,7 @@ namespace Trianglex
                             halfWidth, halfHeight);
 
             g.MultiplyTransform(clientToWorld);
-            g.TranslateTransform(-_zoomPoint.X, -_zoomPoint.Y);
+            g.TranslateTransform(-(float)_origin.X, -(float)_origin.Y);
             g.ScaleTransform(_zoom, _zoom);
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
@@ -293,10 +333,7 @@ namespace Trianglex
             _timer.Start();
         }
 
-        private void button3_Click(object sender, EventArgs e)
-        {
-            _totalPoints += 1;
-            this.UpdatePoints();
-        }
+        
     }
 }
+
