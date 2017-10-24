@@ -377,6 +377,17 @@ namespace Trianglex
             V1.AddEdge(E0);
         }
 
+        public static bool Contains(Triangle t, Vec2 point)
+        {
+            if (t.V0 == null || t.V1 == null || t.V2 == null)
+                return false;
+
+            return 
+                Compare.Greater(Vec2.Cross(t.V1.Position - t.V0.Position, point - t.V0.Position), 0) && 
+                Compare.Greater(Vec2.Cross(t.V2.Position - t.V1.Position, point - t.V1.Position), 0) &&
+                Compare.Greater(Vec2.Cross(t.V0.Position - t.V2.Position, point - t.V2.Position), 0);
+        }
+
         public static bool CircumcircleContainsPoint(Triangle t, Vec2 p)
         {
             return CircumcircleContainsPoint(t.V0.Position, t.V1.Position, t.V2.Position, p);
