@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Trianglex
+namespace TriangleLib
 {
     public static class Compare
     {
@@ -56,12 +56,7 @@ namespace Trianglex
             X = x;
             Y = y;
         }
-
-        public PointF ToPointF()
-        {
-            return new PointF((float)X, (float)Y);
-        }
-
+        
         public override string ToString()
         {
             return "(" + X + "; " + Y + ")";
@@ -176,18 +171,18 @@ namespace Trianglex
             var a0 = Edge.GetRelativeAngleToVertex(e0, _pivot);
             var a1 = Edge.GetRelativeAngleToVertex(e1, _pivot);
 
-            if (Trianglex.Compare.Less(a0, a1))
+            if (TriangleLib.Compare.Less(a0, a1))
                 return -1;
-            else if (Trianglex.Compare.Greater(a0, a1))
+            else if (TriangleLib.Compare.Greater(a0, a1))
                 return 1;
             else
             {
                 var l0 = e0.Length;
                 var l1 = e1.Length;
 
-                if (Trianglex.Compare.Less(l0, l1))
+                if (TriangleLib.Compare.Less(l0, l1))
                     return -1;
-                else if (Trianglex.Compare.Greater(l0, l1))
+                else if (TriangleLib.Compare.Greater(l0, l1))
                     return 1;
             }
 

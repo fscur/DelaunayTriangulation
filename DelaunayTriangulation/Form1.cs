@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using TriangleLib;
 
 namespace Trianglex
 {
@@ -293,6 +294,8 @@ namespace Trianglex
             }
         }
 
+
+
         private void DrawCircumcircle(Graphics g, Triangle triangle, Pen pen)
         {
             double x;
@@ -440,6 +443,14 @@ namespace Trianglex
                 _triangles.Clear();
 
             _timer.Start();
+        }
+    }
+
+    public static class Vec2Extension
+    {
+        public static PointF ToPointF(this Vec2 p)
+        {
+            return new PointF((float)p.X, (float)p.Y);
         }
     }
 }

@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Trianglex
+namespace TriangleLib
 {
-    //This version does not delete any edges, so it can contain a lot of non-delaunay edges.
-    class QuasiConstrainedDelaunayTriangulation
+    //TODO: parallelize!
+    public class DelaunayTriangulation
     {
         enum EdgeType
         {
@@ -45,8 +43,8 @@ namespace Trianglex
                 return new List<Triangle>
                 {
                     new Triangle(
-                        points[startIndex + 0],
-                        points[startIndex + 1],
+                        points[startIndex + 0], 
+                        points[startIndex + 1], 
                         points[startIndex + 2])
                 };
             }
@@ -81,7 +79,7 @@ namespace Trianglex
                 baseEdge,
                 leftTriangles,
                 rightTriangles,
-                out leftRightEdge,
+                out leftRightEdge, 
                 out isFromRightTriangles,
                 out rightEdge,
                 out leftEdge);
@@ -179,7 +177,7 @@ namespace Trianglex
 
             // order right triangles from right to left, bottom to top
             rightTriangleVertices = rightTriangleVertices.OrderBy(p => p.Position.X)
-                .ThenBy(p => p.Position.Y)
+                .ThenBy(p=> p.Position.Y)
                 .ToList();
 
             for (int i = 0; i < leftTriangleVertices.Count; i++)
@@ -278,9 +276,9 @@ namespace Trianglex
             Edge baseEdge,
             List<Triangle> leftTriangles,
             List<Triangle> rightTriangles,
-            out Edge leftRightEdge,
-            out bool isFromRightTriangle,
-            out Edge rightEdge,
+            out Edge leftRightEdge, 
+            out bool isFromRightTriangle, 
+            out Edge rightEdge, 
             out Edge leftEdge)
         {
             var rightResult = FindCandidateVertex(EdgeType.Right, baseEdge, ref rightTriangles);
@@ -301,7 +299,7 @@ namespace Trianglex
                 var b = baseEdge.V0.Position;
                 var c = baseEdge.V1.Position;
                 var p = leftResult.Candidate.Position;
-
+                
                 if (!Triangle.CircumcircleContainsPoint(a, b, c, p))
                 {
                     leftRightEdge = new Edge(baseEdge.V0, rightResult.Candidate);
@@ -356,41 +354,77 @@ namespace Trianglex
 
             CandidateVertexResult result = new CandidateVertexResult();
 
-            Vertex nextPotentialCandidate = null;
-            var minCandidateAngle = double.MaxValue;
-            var edges = baseVertex.Edges;
-            result.Edge = null;
-
-            for (int i = 0; i < edges.Count; i++)
+            while (result.Candidate == null)
             {
-                if (edges[i] == baseEdge)
-                    continue;
+                Vertex nextPotentialCandidate = null;
+                var minCandidateAngle = double.MaxValue;
+                var edges = baseVertex.Edges;
+                result.Edge = null;
 
-                var edge = edges[i];
-
-                var currentPotentialCandidate = edge.V0 == baseVertex ? edge.V1 : edge.V0;
-                Vec2 v0 = baseEdgeDirection;
-                Vec2 v1 = Vec2.Normalize(currentPotentialCandidate.Position - baseVertex.Position);
-                var currentAngle = -Vec2.Dot(v0, v1);
-
-                // if angle between base edge and candidate edge is the smallest angle and is less than 180 degrees
-                if (Compare.Greater(Vec2.Cross(v0, v1) * angleSign, 0) &&
-                    Compare.Less(currentAngle, minCandidateAngle))
+                for (int i = 0; i < edges.Count; i++)
                 {
-                    minCandidateAngle = currentAngle;
+                    if (edges[i] == baseEdge)
+                        continue;
 
-                    result.Edge = edge;
-                    result.Candidate = currentPotentialCandidate;
+                    var edge = edges[i];
 
-                    int j = type == EdgeType.Left ?
-                        (i + 1 < edges.Count ? i + 1 : 0) :
-                        (i == 0 ? edges.Count - 1 : i - 1);
+                    var currentPotentialCandidate = edge.V0 == baseVertex ? edge.V1 : edge.V0;
+                    Vec2 v0 = baseEdgeDirection;
+                    Vec2 v1 = Vec2.Normalize(currentPotentialCandidate.Position - baseVertex.Position);
+                    var currentAngle = -Vec2.Dot(v0, v1);
 
-                    nextPotentialCandidate = edges[j].V0 == baseVertex ? edges[j].V1 : edges[j].V0;
+                    // if angle between base edge and candidate edge is the smallest angle and is less than 180 degrees
+                    if (Compare.Greater(Vec2.Cross(v0, v1) * angleSign, 0) && 
+                        Compare.Less(currentAngle, minCandidateAngle))
+                    {
+                        minCandidateAngle = currentAngle;
+
+                        result.Edge = edge;
+                        result.Candidate = currentPotentialCandidate;
+
+                        int j = type == EdgeType.Left ? 
+                            (i + 1 < edges.Count ? i + 1 : 0) : 
+                            (i == 0 ? edges.Count - 1 : i - 1);
+
+                        nextPotentialCandidate = edges[j].V0 == baseVertex ? edges[j].V1 : edges[j].V0;
+                    }
+                }
+
+                //if found candidate, see if its circumcircle contains the next potential candidate
+                //if it does not, then we are good to go
+                //if it does, we have to remove its edge and start all over
+
+                if (result.Candidate != null)
+                {
+                    var a = result.Candidate.Position;
+                    var b = baseEdge.V0.Position;
+                    var c = baseEdge.V1.Position;
+                    var p = nextPotentialCandidate.Position;
+
+                    var circumcircleContainsNextPotentialCandidate = Triangle.CircumcircleContainsPoint(a, b, c, p);
+
+                    if (!circumcircleContainsNextPotentialCandidate)
+                    {
+                        result.Success = true;
+                        return result;
+                    }
+                    else
+                    {
+                        result.Candidate = null;
+                        baseVertex.RemoveEdge(result.Edge);
+                        triangles.RemoveAll(t => t.Contains(result.Edge));
+
+                        continue;
+                    }
+                }
+                else
+                {
+                    result.Success = false;
+                    return result;
                 }
             }
-            
-            result.Success = result.Candidate != null;
+
+            result.Success = false;
             return result;
         }
     }
