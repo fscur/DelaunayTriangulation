@@ -6,37 +6,41 @@ using System.Threading.Tasks;
 
 namespace TriangleLib
 {
-    //This version does not delete any edges, so it can contain a lot of non-delaunay edges.
-    public class QuasiConstrainedDelaunayTriangulation
+    public class ConformingDelaunayTriangulation
     {
-        enum EdgeType
-        {
-            Left,
-            Right
-        }
-
-        struct CandidateVertexResult
-        {
-            internal Vertex Candidate;
-            internal Edge Edge;
-            internal bool Success;
-        }
-
         //divide and conquer:
         //order points by X and Y coordinate
         //split point set until each division has 2 or 3 points
         //triangulate each division and merge
-        public static List<Triangle> Triangulate(List<Vec2> points)
+        public static List<Triangle> Triangulate(PSLG pslg)
         {
-            if (points.Count < 2)
+            if (pslg == null)
+                throw new ArgumentNullException();
+
+            if (pslg.Edges.Count == 0)
                 return new List<Triangle>();
 
-            var orderedPoints = points.OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
-            return Triangulate(orderedPoints, 0, points.Count - 1);
+            var vertices = new List<Vertex>();
+
+            foreach (var edge in pslg.Edges)
+            {
+                if (!vertices.Contains(edge.V0))
+                    vertices.Add(edge.V0);
+
+                if (!vertices.Contains(edge.V1))
+                    vertices.Add(edge.V1);
+            }
+
+            if (vertices.Count < 2)
+                return new List<Triangle>();
+
+            var orderedVertices = vertices.OrderBy(p => p.Position.X).ThenBy(p => p.Position.Y).ToList();
+            var triangles = Triangulate(pslg, orderedVertices, 0, vertices.Count - 1);
+            return triangles.Where(t => t.V0 != null && t.V1 != null && t.V2 != null).ToList();
         }
 
         //recurse over points until it only find 2 or 3 points
-        private static List<Triangle> Triangulate(List<Vec2> points, int startIndex, int endIndex)
+        private static List<Triangle> Triangulate(PSLG pslg, List<Vertex> vertices, int startIndex, int endIndex)
         {
             var pointsCount = endIndex - startIndex + 1;
 
@@ -45,9 +49,9 @@ namespace TriangleLib
                 return new List<Triangle>
                 {
                     new Triangle(
-                        points[startIndex + 0],
-                        points[startIndex + 1],
-                        points[startIndex + 2])
+                        vertices[startIndex + 0],
+                        vertices[startIndex + 1],
+                        vertices[startIndex + 2])
                 };
             }
             else if (pointsCount == 2)
@@ -55,86 +59,66 @@ namespace TriangleLib
                 return new List<Triangle>
                 {
                     new Triangle(
-                        points[startIndex + 0],
-                        points[startIndex + 1])
+                        vertices[startIndex + 0],
+                        vertices[startIndex + 1])
                 };
             }
 
             var midIndex = (startIndex + endIndex) / 2;
-            var leftTriangles = Triangulate(points, startIndex, midIndex);
-            var rightTriangles = Triangulate(points, midIndex + 1, endIndex);
-            return Merge(leftTriangles, rightTriangles);
+            var leftTriangles = Triangulate(pslg, vertices, startIndex, midIndex);
+            var rightTriangles = Triangulate(pslg, vertices, midIndex + 1, endIndex);
+            return Merge(pslg, leftTriangles, rightTriangles);
         }
 
         //create triangles merging both triangle sides
-        private static List<Triangle> Merge(List<Triangle> leftTriangles, List<Triangle> rightTriangles)
+        private static List<Triangle> Merge(PSLG pslg, List<Triangle> leftTriangles, List<Triangle> rightTriangles)
         {
-            bool isFromRightTriangles;
             Edge leftRightEdge;
             Edge rightEdge;
             Edge leftEdge;
 
             var triangles = new List<Triangle>();
-            var baseEdge = FindBottomMostEdge(leftTriangles, rightTriangles);
+            var baseEdge = FindBottomMostEdge(pslg, leftTriangles, rightTriangles);
 
             var foundLeftRightEdge = FindLeftRightEdge(
+                pslg,
                 baseEdge,
                 leftTriangles,
                 rightTriangles,
                 out leftRightEdge,
-                out isFromRightTriangles,
                 out rightEdge,
                 out leftEdge);
 
-            while (foundLeftRightEdge)
+            if (!foundLeftRightEdge)
             {
-                Vertex v0, v1, v2;
-                Edge e0, e1, e2;
-
-                if (isFromRightTriangles)
-                {
-                    v0 = leftRightEdge.V1;
-                    v1 = baseEdge.V0;
-                    v2 = baseEdge.V1;
-                    e0 = leftRightEdge;
-                    e1 = baseEdge;
-                    e2 = rightEdge;
-
-                    v0.AddEdge(leftRightEdge);
-                    v1.AddEdge(leftRightEdge);
-                }
-                else
-                {
-                    v0 = leftRightEdge.V0;
-                    v1 = baseEdge.V0;
-                    v2 = baseEdge.V1;
-                    e0 = leftEdge;
-                    e1 = baseEdge;
-                    e2 = leftRightEdge;
-
-                    v0.AddEdge(leftRightEdge);
-                    v2.AddEdge(leftRightEdge);
-                }
-
                 var triangle = new Triangle()
                 {
-                    V0 = v0,
-                    V1 = v1,
-                    V2 = v2,
-                    E0 = e0,
-                    E1 = e1,
-                    E2 = e2
+                    V0 = baseEdge.V0,
+                    V1 = baseEdge.V1,
+                    E0 = baseEdge,
                 };
+
+                triangles.Add(triangle);
+            }
+
+            while (foundLeftRightEdge)
+            {
+                var v0 = baseEdge.V0;
+                var v1 = baseEdge.V1;
+                var v2 = leftRightEdge.V0 == v0 || leftRightEdge.V0 == v1 ? leftRightEdge.V1 : leftRightEdge.V0;
+                
+                var triangle = new Triangle(v0, v1, v2);
 
                 triangles.Add(triangle);
 
                 baseEdge = leftRightEdge;
+
                 foundLeftRightEdge = FindLeftRightEdge(
+                    pslg,
                     baseEdge,
                     leftTriangles,
                     rightTriangles,
                     out leftRightEdge,
-                    out isFromRightTriangles,
                     out rightEdge,
                     out leftEdge);
             }
@@ -148,7 +132,7 @@ namespace TriangleLib
         //find the bottom most edge connecting the left and right triangles that is part of the convex hull(N LOG N???)
         //NOTE: HOW TO IMPROVE THIS?
         //      the result of the merge could return each side`s most bottom hull vertex?
-        private static Edge FindBottomMostEdge(List<Triangle> leftTriangles, List<Triangle> rightTriangles)
+        private static Edge FindBottomMostEdge(PSLG pslg, List<Triangle> leftTriangles, List<Triangle> rightTriangles)
         {
             var leftTriangleVertices = new List<Vertex>();
             foreach (var triangle in leftTriangles)
@@ -275,65 +259,75 @@ namespace TriangleLib
 
         //find the edges connecting the left and right triangles (stitching)
         private static bool FindLeftRightEdge(
+            PSLG pslg,
             Edge baseEdge,
             List<Triangle> leftTriangles,
             List<Triangle> rightTriangles,
             out Edge leftRightEdge,
-            out bool isFromRightTriangle,
             out Edge rightEdge,
             out Edge leftEdge)
         {
-            var rightResult = FindCandidateVertex(EdgeType.Right, baseEdge, ref rightTriangles);
-            var leftResult = FindCandidateVertex(EdgeType.Left, baseEdge, ref leftTriangles);
-
-            leftRightEdge = null;
-            isFromRightTriangle = false;
-            var foundRightEdgeCandidate = rightResult.Success;
-            var foundLeftEdgeCandidate = leftResult.Success;
+            var rightResult = FindCandidateVertex(pslg, TrianglesDivideSide.Right, baseEdge, ref rightTriangles);
+            var leftResult = FindCandidateVertex(pslg, TrianglesDivideSide.Left, baseEdge, ref leftTriangles);
 
             rightEdge = rightResult.Edge;
             leftEdge = leftResult.Edge;
+            leftRightEdge = null;
+
+            if (!rightResult.Success && !leftResult.Success)
+                return false;
+
+            var foundRightEdgeCandidate = rightResult.Success;
+            var foundLeftEdgeCandidate = leftResult.Success;
+
+            TrianglesDivideSide selectedSide = TrianglesDivideSide.None;
 
             //found 2 candidates? see which is inside which circumcircles...
-            if (foundRightEdgeCandidate && foundLeftEdgeCandidate)
+            if (!foundRightEdgeCandidate)
+                selectedSide = TrianglesDivideSide.Left;
+            else if (!foundLeftEdgeCandidate)
+                selectedSide = TrianglesDivideSide.Right;
+            else
             {
                 var a = rightResult.Candidate.Position;
                 var b = baseEdge.V0.Position;
                 var c = baseEdge.V1.Position;
                 var p = leftResult.Candidate.Position;
 
-                if (!Triangle.CircumcircleContainsPoint(a, b, c, p))
-                {
-                    leftRightEdge = new Edge(baseEdge.V0, rightResult.Candidate);
-                    isFromRightTriangle = true;
-                }
-                else
-                {
+                selectedSide = !Triangle.CircumcircleContainsPoint(a, b, c, p) ? TrianglesDivideSide.Right : TrianglesDivideSide.Left;
+            }
+
+            switch (selectedSide)
+            {
+                case TrianglesDivideSide.Left:
                     leftRightEdge = new Edge(leftResult.Candidate, baseEdge.V1);
-                    isFromRightTriangle = false;
-                }
 
-                return true;
-            }
-            else if (foundRightEdgeCandidate)
-            {
-                leftRightEdge = new Edge(baseEdge.V0, rightResult.Candidate);
-                isFromRightTriangle = true;
-                return true;
-            }
-            else if (foundLeftEdgeCandidate)
-            {
-                leftRightEdge = new Edge(leftResult.Candidate, baseEdge.V1);
-                isFromRightTriangle = false;
-                return true;
+                    if (!leftResult.Candidate.Edges.Contains(leftRightEdge))
+                        leftResult.Candidate.AddEdge(leftRightEdge);
+
+                    if (!baseEdge.V1.Edges.Contains(leftRightEdge))
+                        baseEdge.V1.AddEdge(leftRightEdge);
+                    break;
+                case TrianglesDivideSide.Right:
+                    leftRightEdge = new Edge(baseEdge.V0, rightResult.Candidate);
+
+                    if (!baseEdge.V0.Edges.Contains(leftRightEdge))
+                        baseEdge.V0.AddEdge(leftRightEdge);
+
+                    if (!rightResult.Candidate.Edges.Contains(leftRightEdge))
+                        rightResult.Candidate.AddEdge(leftRightEdge);
+                    break;
+                default:
+                    break;
             }
 
-            return false;
+            return true;
         }
 
         //search for smallest angle edge from base edge that circumcircle does not have any point inside
         private static CandidateVertexResult FindCandidateVertex(
-            EdgeType type,
+            PSLG pslg,
+            TrianglesDivideSide type,
             Edge baseEdge,
             ref List<Triangle> triangles)
         {
@@ -341,7 +335,7 @@ namespace TriangleLib
             Vec2 baseEdgeDirection;
             double angleSign;
 
-            if (type == EdgeType.Left)
+            if (type == TrianglesDivideSide.Left)
             {
                 angleSign = 1.0;
                 baseVertex = baseEdge.V0;
@@ -356,41 +350,109 @@ namespace TriangleLib
 
             CandidateVertexResult result = new CandidateVertexResult();
 
-            Vertex nextPotentialCandidate = null;
-            var minCandidateAngle = double.MaxValue;
-            var edges = baseVertex.Edges;
-            result.Edge = null;
-
-            for (int i = 0; i < edges.Count; i++)
+            while (result.Candidate == null)
             {
-                if (edges[i] == baseEdge)
-                    continue;
+                Vertex nextPotentialCandidate = null;
+                var minCandidateAngle = double.MaxValue;
+                var edges = baseVertex.Edges;
+                result.Edge = null;
 
-                var edge = edges[i];
-
-                var currentPotentialCandidate = edge.V0 == baseVertex ? edge.V1 : edge.V0;
-                Vec2 v0 = baseEdgeDirection;
-                Vec2 v1 = Vec2.Normalize(currentPotentialCandidate.Position - baseVertex.Position);
-                var currentAngle = -Vec2.Dot(v0, v1);
-
-                // if angle between base edge and candidate edge is the smallest angle and is less than 180 degrees
-                if (Compare.Greater(Vec2.Cross(v0, v1) * angleSign, 0) &&
-                    Compare.Less(currentAngle, minCandidateAngle))
+                for (int i = 0; i < edges.Count; i++)
                 {
-                    minCandidateAngle = currentAngle;
+                    if (edges[i] == baseEdge)
+                        continue;
 
-                    result.Edge = edge;
-                    result.Candidate = currentPotentialCandidate;
+                    var edge = edges[i];
 
-                    int j = type == EdgeType.Left ?
-                        (i + 1 < edges.Count ? i + 1 : 0) :
-                        (i == 0 ? edges.Count - 1 : i - 1);
+                    var currentPotentialCandidate = edge.V0 == baseVertex ? edge.V1 : edge.V0;
+                    Vec2 v0 = baseEdgeDirection;
+                    Vec2 v1 = Vec2.Normalize(currentPotentialCandidate.Position - baseVertex.Position);
+                    var currentAngle = -Vec2.Dot(v0, v1);
 
-                    nextPotentialCandidate = edges[j].V0 == baseVertex ? edges[j].V1 : edges[j].V0;
+                    // if angle between base edge and candidate edge is the smallest angle and is less than 180 degrees
+                    if (Compare.Greater(Vec2.Cross(v0, v1) * angleSign, 0) &&
+                        Compare.Less(currentAngle, minCandidateAngle))
+                    {
+                        minCandidateAngle = currentAngle;
+
+                        result.Edge = edge;
+                        result.Candidate = currentPotentialCandidate;
+
+                        int j = type == TrianglesDivideSide.Left ?
+                            (i + 1 < edges.Count ? i + 1 : 0) :
+                            (i == 0 ? edges.Count - 1 : i - 1);
+
+                        nextPotentialCandidate = edges[j].V0 == baseVertex ? edges[j].V1 : edges[j].V0;
+                    }
+                }
+
+                //if found candidate, see if its circumcircle contains the next potential candidate
+                //if it does not, then we are good to go
+                //if it does, we have to remove its edge and start all over
+
+                if (result.Candidate != null)
+                {
+                    var a = result.Candidate.Position;
+                    var b = baseEdge.V0.Position;
+                    var c = baseEdge.V1.Position;
+                    var p = nextPotentialCandidate.Position;
+
+                    var circumcircleContainsNextPotentialCandidate = Triangle.CircumcircleContainsPoint(a, b, c, p);
+
+                    if (!circumcircleContainsNextPotentialCandidate)
+                    {
+                        result.Success = true;
+                        return result;
+                    }
+                    else
+                    {
+                        if (pslg.Contains(result.Edge))
+                        {
+                            var edge = result.Edge;
+                            var midVertex = new Vertex(edge.MidPoint);
+
+                            triangles.RemoveAll(t => t.Contains(edge));
+
+                            edge.V0.Edges.Remove(edge);
+                            edge.V1.Edges.Remove(edge);
+
+                            var e0 = new Edge(edge.V0, midVertex);
+                            var e1 = new Edge(midVertex, edge.V1);
+
+                            pslg.Edges.Remove(pslg.Find(edge.V0, edge.V1));
+                            pslg.Edges.Add(e0);
+                            pslg.Edges.Add(e1);
+
+                            var t0 = new Triangle(midVertex, edge.V0, nextPotentialCandidate);
+                            var t1 = new Triangle(midVertex, nextPotentialCandidate, edge.V1);
+
+                            triangles.Add(t0);
+                            triangles.Add(t1);
+
+                            var flippingEdge0 = edge.V0.Find(nextPotentialCandidate);
+                            var flippingEdge1 = edge.V1.Find(nextPotentialCandidate);
+
+                            
+                        }
+                        else
+                        {
+                            baseVertex.RemoveEdge(result.Edge);
+                            triangles.RemoveAll(t => t.Contains(result.Edge));
+                        }
+
+                        result.Candidate = null;
+
+                        continue;
+                    }
+                }
+                else
+                {
+                    result.Success = false;
+                    return result;
                 }
             }
-            
-            result.Success = result.Candidate != null;
+
+            result.Success = false;
             return result;
         }
     }

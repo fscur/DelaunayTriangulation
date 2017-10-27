@@ -8,323 +8,6 @@ using System.Threading.Tasks;
 
 namespace TriangleLib
 {
-    public static class Compare
-    {
-        static readonly double EPSILON = 0.5E-9;
-        static double RelativeError(double a, double b)
-        {
-            return Math.Abs(a - b) / Math.Max(Math.Abs(a), Math.Abs(b));
-        }
-        public static bool AlmostEqual(double a, double b)
-        {
-            return a == b || RelativeError(a, b) < EPSILON;
-        }
-
-        public static bool GreaterOrEqual(double a, double b)
-        {
-            return a > b || AlmostEqual(a, b);
-        }
-
-        public static bool LessOrEqual(double a, double b)
-        {
-            return a < b || AlmostEqual(a, b);
-        }
-
-        public static bool Less(double a, double b)
-        {
-            return !AlmostEqual(a, b) && a < b;
-        }
-
-        public static bool Greater(double a, double b)
-        {
-            return !AlmostEqual(a, b) && a > b;
-        }
-    }
-
-    public class Vec2
-    {
-        public double X;
-        public double Y;
-
-        public Vec2()
-        {
-
-        }
-
-        public Vec2(double x, double y)
-        {
-            X = x;
-            Y = y;
-        }
-        
-        public override string ToString()
-        {
-            return "(" + X + "; " + Y + ")";
-        }
-
-        public override bool Equals(Object obj)
-        {
-            if (obj == null || GetType() != obj.GetType())
-                return false;
-
-            Vec2 p = (Vec2)obj;
-            return Compare.AlmostEqual(X, p.X) && Compare.AlmostEqual(Y, p.Y);
-        }
-
-        public override int GetHashCode()
-        {
-            unchecked // Overflow is fine, just wrap
-            {
-                int hash = 17;
-                // Suitable nullity checks etc, of course :)
-                hash = hash * 23 + X.GetHashCode();
-                hash = hash * 23 + Y.GetHashCode();
-                return hash;
-            }
-        }
-
-        public static bool operator ==(Vec2 a, Vec2 b)
-        {
-            if (object.ReferenceEquals(a, null))
-                return object.ReferenceEquals(b, null);
-
-            return a.Equals(b);
-        }
-
-        public static bool operator !=(Vec2 a, Vec2 b)
-        {
-            return !(a == b);
-        }
-
-        public static Vec2 operator -(Vec2 a, Vec2 b)
-        {
-            return new Vec2() { X = a.X - b.X, Y = a.Y - b.Y };
-        }
-
-        public static Vec2 operator -(Vec2 a)
-        {
-            return new Vec2() { X = -a.X, Y = -a.Y };
-        }
-
-        public static Vec2 operator +(Vec2 a, Vec2 b)
-        {
-            return new Vec2() { X = a.X + b.X, Y = a.Y + b.Y };
-        }
-
-        public static Vec2 operator *(Vec2 a, double b)
-        {
-            return new Vec2() { X = a.X * b, Y = a.Y * b };
-        }
-
-        public static Vec2 operator *(double a, Vec2 b)
-        {
-            return new Vec2() { X = a * b.X, Y = a * b.Y };
-        }
-
-        public static Vec2 operator /(Vec2 a, double b)
-        {
-            return new Vec2() { X = a.X / b, Y = a.Y / b };
-        }
-
-        public static double Length(Vec2 a)
-        {
-            var dx = System.Math.Pow(a.X, 2.0);
-            var dy = System.Math.Pow(a.Y, 2.0);
-
-            return System.Math.Sqrt(dx + dy);
-        }
-
-        public static double SquaredLength(Vec2 a)
-        {
-            var dx = System.Math.Pow(a.X, 2.0);
-            var dy = System.Math.Pow(a.Y, 2.0);
-
-            return dx + dy;
-        }
-
-        public static Vec2 Normalize(Vec2 a)
-        {
-            return a / Length(a);
-        }
-
-        public static double Dot(Vec2 a, Vec2 b)
-        {
-            return a.X * b.X + a.Y * b.Y;
-        }
-
-        public static double Cross(Vec2 a, Vec2 b)
-        {
-            return a.X * b.Y - a.Y * b.X;
-        }
-    }
-
-    public class PivotVertexEdgeComparer : IComparer<Edge>
-    {
-        private Vertex _pivot;
-
-        public PivotVertexEdgeComparer(Vertex pivot)
-        {
-            _pivot = pivot;
-        }
-        public int Compare(Edge e0, Edge e1)
-        {
-            var a0 = Edge.GetRelativeAngleToVertex(e0, _pivot);
-            var a1 = Edge.GetRelativeAngleToVertex(e1, _pivot);
-
-            if (TriangleLib.Compare.Less(a0, a1))
-                return -1;
-            else if (TriangleLib.Compare.Greater(a0, a1))
-                return 1;
-            else
-            {
-                var l0 = e0.Length;
-                var l1 = e1.Length;
-
-                if (TriangleLib.Compare.Less(l0, l1))
-                    return -1;
-                else if (TriangleLib.Compare.Greater(l0, l1))
-                    return 1;
-            }
-
-            return 0;
-        }
-    }
-
-    public class Vertex
-    {
-        private IComparer<Edge> _edgeComparer;
-
-        public Vec2 Position;
-
-        public List<Edge> Edges;
-
-        public Vertex(Vec2 position)
-        {
-            Position = position;
-            Edges = new List<Edge>();
-            _edgeComparer = new PivotVertexEdgeComparer(this);
-        }
-
-        public override bool Equals(Object obj)
-        {
-            // Check for null values and compare run-time types.
-            if (obj == null || GetType() != obj.GetType())
-                return false;
-
-            Vertex p = (Vertex)obj;
-
-            foreach (var edge in p.Edges)
-                if (!Edges.Contains(edge))
-                    return false;
-
-            return Position == p.Position;
-        }
-
-        public override int GetHashCode()
-        {
-            return Position.GetHashCode();
-        }
-
-        public static bool operator ==(Vertex a, Vertex b)
-        {
-            if (object.ReferenceEquals(a, null))
-                return object.ReferenceEquals(b, null);
-
-            return a.Equals(b);
-        }
-
-        public static bool operator !=(Vertex a, Vertex b)
-        {
-            return !(a == b);
-        }
-
-        public override string ToString()
-        {
-            return Position.ToString();
-        }
-
-        public void AddEdge(Edge edge)
-        {
-            Edges.Add(edge);
-            Edges.Sort(_edgeComparer);
-        }
-
-        public void RemoveEdge(Edge edge)
-        {
-            Edges.Remove(edge);
-            Edges.Sort(_edgeComparer);
-        }
-    }
-
-    public class Edge
-    {
-        private Vertex _v0;
-        private Vertex _v1;
-        private Vec2 _direction;
-        private double _length;
-        private List<Triangle> _faces;
-
-        public double Length { get { return _length; } }
-        public Vec2 Direction { get { return _direction; } }
-        public Vertex V0 { get { return _v0; } }
-        public Vertex V1 { get { return _v1; } }
-
-        public Edge(Vertex v0, Vertex v1)
-        {
-            _v0 = v0;
-            _v1 = v1;
-            _faces = new List<Triangle>();
-            _length = Vec2.Length(_v1.Position - _v0.Position);
-            _direction = (_v1.Position - _v0.Position)/_length;
-        }
-
-        public static bool Intersects(Edge e0, Edge e1)
-        {
-            if (e0._v0.Position == e1._v0.Position ||
-                e0._v0.Position == e1._v1.Position ||
-                e0._v1.Position == e1._v0.Position ||
-                e0._v1.Position == e1._v1.Position)
-                return false;
-
-            var a = e0._v0.Position;
-            var b = e0._v1.Position;
-            var c = e1._v0.Position;
-            var d = e1._v1.Position;
-
-            var ca = Vec2.Cross(c - a, d - a);
-            var cb = Vec2.Cross(c - b, d - b);
-            var cc = Vec2.Cross(a - c, b - c);
-            var cd = Vec2.Cross(a - d, b - d);
-
-            var ccwa = Compare.LessOrEqual(ca, 0);
-            var ccwb = Compare.LessOrEqual(cb, 0);
-
-            var ccwc = Compare.LessOrEqual(cc, 0);
-            var ccwd = Compare.LessOrEqual(cd, 0);
-
-            return !(ccwa == ccwb || ccwc == ccwd);
-        }
-
-        public override string ToString()
-        {
-            return "[" + _v0 + "; " + _v1 + "]";
-        }
-
-        public static double GetRelativeAngleToVertex(Edge edge, Vertex vertex)
-        {
-            Vertex testVertex = null;
-
-            if (vertex == edge._v0)
-                testVertex = edge._v1;
-            else if (vertex == edge._v1)
-                testVertex = edge._v0;
-            else
-                throw new InvalidOperationException("Input vertex should be one of the input edge.");
-
-            var direction = testVertex.Position - vertex.Position;
-            return (Math.Atan2(direction.Y, direction.X) + 2.0 * Math.PI) % (2.0 * Math.PI);
-        }
-    }
     public class Triangle
     {
         public Vertex V0;
@@ -341,37 +24,88 @@ namespace TriangleLib
         {
 
         }
-        public Triangle(Vec2 a, Vec2 b, Vec2 c)
+
+        public Triangle(Vertex a, Vertex b, Vertex c)
         {
-            var isCounterClockwise = Vec2.Cross(b - a, c - a) > 0;
+            var isCounterClockwise = Vec2.Cross(b.Position - a.Position, c.Position - a.Position) > 0;
 
-            V0 = new Vertex(a);
-            V1 = isCounterClockwise ? new Vertex(b) : new Vertex(c);
-            V2 = isCounterClockwise ? new Vertex(c) : new Vertex(b);
+            V0 = a;
+            V1 = isCounterClockwise ? b : c;
+            V2 = isCounterClockwise ? c : b;
 
-            E0 = new Edge(V0, V1);
-            E1 = new Edge(V1, V2);
-            E2 = new Edge(V2, V0);
+            //find for edges in the already present edges of the current vertices
+            var e0 = V0.Find(V1);
+            var e1 = V1.Find(V2);
+            var e2 = V2.Find(V0);
 
-            V0.AddEdge(E0);
-            V1.AddEdge(E0);
-            V1.AddEdge(E1);
-            V2.AddEdge(E1);
-            V2.AddEdge(E2);
-            V0.AddEdge(E2);
+            if (e0 == null)
+            {
+                E0 = new Edge(V0, V1);
+                V0.AddEdge(E0);
+                V1.AddEdge(E0);
+            }
+            else
+                E0 = e0;
+
+            if (E0.T0 == null)
+                E0.T0 = this;
+            else if (E0.T1 == null)
+                E0.T1 = this;
+
+            if (e1 == null)
+            {
+                E1 = new Edge(V1, V2);
+                V1.AddEdge(E1);
+                V2.AddEdge(E1);
+            }
+            else
+                E1 = e1;
+
+            if (E1.T0 == null)
+                E1.T0 = this;
+            else if(E1.T1 == null)
+                E1.T1 = this;
+
+            if (e2 == null)
+            {
+                E2 = new Edge(V2, V0);
+                V2.AddEdge(E2);
+                V0.AddEdge(E2);
+            }
+            else
+                E2 = e2;
+
+            if (E2.T0 == null)
+                E2.T0 = this;
+            else if (E2.T1 == null)
+                E2.T1 = this;
         }
-
-        public Triangle(Vec2 a, Vec2 b)
+        
+        public Triangle(Vertex a, Vertex b)
         {
-            V0 = new Vertex(a);
-            V1 = new Vertex(b);
+            V0 = a;
+            V1 = b;
 
-            E0 = new Edge(V0, V1);
+            //find for edges in the already present edges of the current vertices
+            var e0 = V0.Find(V1);
 
-            V0.AddEdge(E0);
-            V1.AddEdge(E0);
+            if (e0 == null)
+            {
+                E0 = new Edge(V0, V1);
+                V0.AddEdge(E0);
+                V1.AddEdge(E0);
+                E0.T0 = this;
+            }
+            else
+            {
+                E0 = e0;
+                if (E1.T0 == null)
+                    E1.T0 = this;
+                else
+                    E1.T1 = this;
+            }
         }
-
+        
         public static bool Contains(Triangle t, Vec2 point)
         {
             if (t.V0 == null || t.V1 == null || t.V2 == null)
