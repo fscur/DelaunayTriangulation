@@ -12,10 +12,12 @@ namespace TriangleLib
         private Vertex _v1;
         private Vec2 _direction;
         private double _length;
-        private Triangle _t0;
 
-        public Triangle T0;
-        public Triangle T1;
+        List<Triangle> _triangles;
+        public List<Triangle> Triangles
+        {
+            get { return _triangles; }
+        }
 
         public double Length { get { return _length; } }
 
@@ -36,6 +38,7 @@ namespace TriangleLib
             _v1 = v1;
             _length = Vec2.Length(_v1.Position - _v0.Position);
             _direction = (_v1.Position - _v0.Position) / _length;
+            _triangles = new List<Triangle>();
         }
         
         public static bool Intersects(Edge e0, Edge e1)
@@ -65,9 +68,46 @@ namespace TriangleLib
             return !(ccwa == ccwb || ccwc == ccwd);
         }
 
-        public Edge GetOppositeEdge()
+        public Edge InverseEdge()
         {
             return new Edge(V1, V0);
+        }
+
+        public Vertex FindOppositeVertex(Triangle triangle)
+        {
+            if (Triangles.Count < 2)
+                return null;
+
+            var t = Triangles[0] != triangle ? Triangles[0] : Triangles[1];
+
+            if ((t.V0 == V0 && t.V1 == V1) || (t.V0 == V1 && t.V1 == V0))
+                return t.V2;
+            else if ((t.V1 == V0 && t.V2 == V1) || (t.V1 == V1 && t.V2 == V0))
+                return t.V0;
+            else if ((t.V2 == V0 && t.V0 == V1) || (t.V2 == V1 && t.V0 == V0))
+                return t.V1;
+
+            return null;
+        }
+
+        public static bool IsDelaunay(Edge edge)
+        {
+            if (edge.Triangles.Count < 2)
+                return true;
+
+            var t0 = edge.Triangles[0];
+
+            var p = edge.FindOppositeVertex(t0).Position;
+
+            return !Triangle.CircumcircleContainsPoint(t0, p);
+        }
+
+        public Edge FlipEdge()
+        {
+            Vertex v0 = FindOppositeVertex(_triangles[0]);
+            Vertex v1 = FindOppositeVertex(_triangles[1]);
+
+            return new Edge(v0, v1);
         }
 
         public override string ToString()
@@ -77,14 +117,15 @@ namespace TriangleLib
 
         public static double GetRelativeAngleToVertex(Edge edge, Vertex vertex)
         {
-            Vertex testVertex = null;
+            Vertex testVertex = vertex.Position == edge._v0.Position ? edge._v1 : edge._v0;
 
-            if (vertex == edge._v0)
-                testVertex = edge._v1;
-            else if (vertex == edge._v1)
-                testVertex = edge._v0;
-            else
-                throw new InvalidOperationException("Input vertex should be one of the input edge.");
+
+            //if (vertex == edge._v0)
+            //    testVertex = edge._v1;
+            //else if (vertex == edge._v1)
+            //    testVertex = edge._v0;
+            //else
+            //    throw new InvalidOperationException("Input vertex should be one of the input edge.");
 
             var direction = testVertex.Position - vertex.Position;
             return (Math.Atan2(direction.Y, direction.X) + 2.0 * Math.PI) % (2.0 * Math.PI);

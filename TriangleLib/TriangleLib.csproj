@@ -44,8 +44,9 @@
     <Compile Include="CandidateVertexResult.cs" />
     <Compile Include="Compare.cs" />
     <Compile Include="DelaunayTriangulation.cs" />
+    <Compile Include="DelaunayTriangulationMode.cs" />
     <Compile Include="Edge.cs" />
-    <Compile Include="PivotVertexEdgeComparer.cs" />
+    <Compile Include="EdgeAngleComparer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PSLG.cs" />
     <Compile Include="ConformingDelaunayTriangulation.cs" />

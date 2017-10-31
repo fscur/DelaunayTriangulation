@@ -18,7 +18,7 @@ namespace TriangleLib
         {
             Position = position;
             Edges = new List<Edge>();
-            _edgeComparer = new PivotVertexEdgeComparer(this);
+            _edgeComparer = new EdgeAngleComparer(this);
         }
 
         public override bool Equals(Object obj)

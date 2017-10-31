@@ -172,6 +172,14 @@ namespace Trianglex
             //}
 
             _points = new List<Vec2>();
+            _pslg = new PSLG();
+            //_points.Add(new Vec2() { X = 250.0, Y = 150.0 });
+            //_points.Add(new Vec2() { X = 200.0, Y = 100.0 });
+            //_points.Add(new Vec2() { X = 250.0, Y = 75.0 });
+            //_points.Add(new Vec2() { X = 250.0, Y = 50.0 });
+            //_points.Add(new Vec2() { X = 250.0, Y = 0.0 });
+
+
             //_points.Add(new Vec2() { X = 0.0, Y = 0.0 });
             //_points.Add(new Vec2() { X = 100.0, Y = 0.0 });
             //_points.Add(new Vec2() { X = 200.0, Y = 0.0 });
@@ -194,6 +202,8 @@ namespace Trianglex
             //_points.Add(new Vec2() { X = 486.201923268941, Y = -264.478172028427 });
             //_points.Add(new Vec2() { X = -354.211467222409, Y = -445.793001202072 });
 
+            /////////////////////////////////////////
+
             _points.Add(new Vec2() { X = 0.0, Y = 50.0 });
             _points.Add(new Vec2() { X = 50.0, Y = 0.0 });
             _points.Add(new Vec2() { X = 100.0, Y = 50.0 });
@@ -204,6 +214,7 @@ namespace Trianglex
             _points.Add(new Vec2() { X = 200.0, Y = 100.0 });
             _points.Add(new Vec2() { X = 250.0, Y = 50.0 });
             _points.Add(new Vec2() { X = 250.0, Y = 0.0 });
+            _points.Add(new Vec2() { X = 250.0, Y = 75.0 });
 
             var v00 = new Vertex(_points[0]);
             var v01 = new Vertex(_points[1]);
@@ -215,31 +226,22 @@ namespace Trianglex
             var v07 = new Vertex(_points[7]);
             var v08 = new Vertex(_points[8]);
             var v09 = new Vertex(_points[9]);
+            var v10 = new Vertex(_points[10]);
 
-            var e00 = new Edge(v00, v01);
-            var e01 = new Edge(v01, v02);
-            var e02 = new Edge(v02, v03);
-            var e03 = new Edge(v03, v04);
-            var e04 = new Edge(v04, v05);
-            var e05 = new Edge(v05, v06);
-            var e06 = new Edge(v06, v07);
-            var e07 = new Edge(v07, v08);
-            var e08 = new Edge(v08, v09);
-            var e09 = new Edge(v09, v05);
-            var e10 = new Edge(v04, v02);
+            _pslg.Edges.Add(new Edge(v00, v01));
+            _pslg.Edges.Add(new Edge(v01, v02));
+            _pslg.Edges.Add(new Edge(v02, v03));
+            _pslg.Edges.Add(new Edge(v03, v04));
+            _pslg.Edges.Add(new Edge(v04, v05));
+            _pslg.Edges.Add(new Edge(v05, v06));
+            _pslg.Edges.Add(new Edge(v06, v07));
+            _pslg.Edges.Add(new Edge(v07, v08));
+            _pslg.Edges.Add(new Edge(v08, v09));
+            _pslg.Edges.Add(new Edge(v09, v05));
+            _pslg.Edges.Add(new Edge(v04, v02));
+            _pslg.Edges.Add(new Edge(v07, v10));
 
-            _pslg.Edges.Add(e00);
-            _pslg.Edges.Add(e01);
-            _pslg.Edges.Add(e02);
-            _pslg.Edges.Add(e03);
-            _pslg.Edges.Add(e04);
-            _pslg.Edges.Add(e05);
-            _pslg.Edges.Add(e06);
-            _pslg.Edges.Add(e07);
-            _pslg.Edges.Add(e08);
-            _pslg.Edges.Add(e09);
-            _pslg.Edges.Add(e10);
-
+            //***************************
             //new Vec2(100, 100) +
             //new Vec2(100, 100) +
             //new Vec2(100, 100) +
@@ -372,7 +374,7 @@ namespace Trianglex
             {
                 foreach (var edge in _pslg.Edges)
                 {
-                    Draw(g, edge, Color.DarkCyan, 2.0f * _zoomInverse);
+                    Draw(g, edge, Color.Maroon, 2.0f * _zoomInverse);
                 }
             }
         }
@@ -517,7 +519,7 @@ namespace Trianglex
                 Draw(g, triangle.E2, color);
         }
 
-        private void Draw(Graphics g, Edge edge, Color color, float width = 1.0f)
+        private void Draw(Graphics g, Edge edge, Color color, float width = -1.0f)
         {
             var v0 = edge.V0.Position.ToPointF();
             var v1 = edge.V1.Position.ToPointF();
@@ -564,6 +566,7 @@ namespace Trianglex
         private void toolStripMenuItem1_Click(object sender, EventArgs e)
         {
             _timer.Stop();
+            UpdatePoints();
             _triangles = DelaunayTriangulation.Triangulate(_points);
             _timer.Start();
         }
@@ -571,7 +574,8 @@ namespace Trianglex
         private void toolStripMenuItem2_Click(object sender, EventArgs e)
         {
             _timer.Stop();
-            _triangles = ConformingDelaunayTriangulation.Triangulate(_pslg);
+            UpdatePoints();
+            _triangles = DelaunayTriangulation.Triangulate(_pslg);
             _timer.Start();
         }
 

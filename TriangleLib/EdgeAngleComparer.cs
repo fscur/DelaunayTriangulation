@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace TriangleLib
 {
-    public class PivotVertexEdgeComparer : IComparer<Edge>
+    public class EdgeAngleComparer : IComparer<Edge>
     {
         private Vertex _pivot;
 
-        public PivotVertexEdgeComparer(Vertex pivot)
+        public EdgeAngleComparer(Vertex pivot)
         {
             _pivot = pivot;
         }

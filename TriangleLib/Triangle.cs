@@ -47,11 +47,6 @@ namespace TriangleLib
             else
                 E0 = e0;
 
-            if (E0.T0 == null)
-                E0.T0 = this;
-            else if (E0.T1 == null)
-                E0.T1 = this;
-
             if (e1 == null)
             {
                 E1 = new Edge(V1, V2);
@@ -60,11 +55,6 @@ namespace TriangleLib
             }
             else
                 E1 = e1;
-
-            if (E1.T0 == null)
-                E1.T0 = this;
-            else if(E1.T1 == null)
-                E1.T1 = this;
 
             if (e2 == null)
             {
@@ -75,10 +65,9 @@ namespace TriangleLib
             else
                 E2 = e2;
 
-            if (E2.T0 == null)
-                E2.T0 = this;
-            else if (E2.T1 == null)
-                E2.T1 = this;
+            E0.Triangles.Add(this);
+            E1.Triangles.Add(this);
+            E2.Triangles.Add(this);
         }
         
         public Triangle(Vertex a, Vertex b)
@@ -94,16 +83,11 @@ namespace TriangleLib
                 E0 = new Edge(V0, V1);
                 V0.AddEdge(E0);
                 V1.AddEdge(E0);
-                E0.T0 = this;
             }
             else
-            {
                 E0 = e0;
-                if (E1.T0 == null)
-                    E1.T0 = this;
-                else
-                    E1.T1 = this;
-            }
+
+            E0.Triangles.Add(this);
         }
         
         public static bool Contains(Triangle t, Vec2 point)
@@ -150,7 +134,7 @@ namespace TriangleLib
 
             return Compare.Greater(det, 0.0);
         }
-
+        
         public override string ToString()
         {
             var v0 = V0 != null ? V0.ToString() : string.Empty;
