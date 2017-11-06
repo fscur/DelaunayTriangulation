@@ -585,7 +585,7 @@ namespace Trianglex
         {
             _timer.Stop();
             UpdatePoints();
-            _triangles = DelaunayTriangulation.Triangulate(_pslg);
+            _triangles = ConformingDelaunayTriangulation.Triangulate(_pslg);
             _timer.Start();
         }
 

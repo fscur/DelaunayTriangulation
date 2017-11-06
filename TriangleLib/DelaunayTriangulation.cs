@@ -7,51 +7,12 @@ namespace TriangleLib
     //TODO: parallelize!
     public class DelaunayTriangulation
     {
-        private DelaunayTriangulationMode _mode;
-        private PSLG _pslg;
-
-        private DelaunayTriangulation(DelaunayTriangulationMode mode, PSLG pslg)
-        {
-            _mode = mode;
-            _pslg = pslg;
-        }
-
-        private DelaunayTriangulation(DelaunayTriangulationMode mode = DelaunayTriangulationMode.Standard) : this(mode, null)
-        {
-        }
-
-        public static List<Triangle> Triangulate(PSLG pslg)
-        {
-            if (pslg == null)
-                throw new ArgumentNullException();
-
-            if (pslg.Edges.Count == 0)
-                return new List<Triangle>();
-
-            var vertices = new List<Vertex>();
-
-            foreach (var edge in pslg.Edges)
-            {
-                if (!vertices.Contains(edge.V0))
-                    vertices.Add(edge.V0);
-
-                if (!vertices.Contains(edge.V1))
-                    vertices.Add(edge.V1);
-            }
-
-            if (vertices.Count < 3)
-                throw new ArgumentException("There must be at least three vertices to triangulate.");
-
-            var triangulation = new DelaunayTriangulation(DelaunayTriangulationMode.Conforming, pslg);
-            return triangulation.ExecuteTriangulation(vertices);
-        }
-        
         public static List<Triangle> Triangulate(List<Vec2> points)
         {
             if (points.Count < 3)
                 throw new ArgumentException("There must be at least three points to triangulate.");
-            
-            var triangulation = new DelaunayTriangulation(DelaunayTriangulationMode.Standard);
+
+            var triangulation = new DelaunayTriangulation();
             var vertices = points.Select(p => new Vertex(p));
             return triangulation.ExecuteTriangulation(vertices);
         }
@@ -79,13 +40,6 @@ namespace TriangleLib
                     vertices[startIndex + 1],
                     vertices[startIndex + 2]);
 
-                if (_mode == DelaunayTriangulationMode.Conforming)
-                {
-                    _pslg.RemoveEdge(triangle.E0);
-                    _pslg.RemoveEdge(triangle.E1);
-                    _pslg.RemoveEdge(triangle.E2);
-                }
-
                 return new List<Triangle> { triangle };
             }
             else if (pointsCount == 2)
@@ -93,9 +47,6 @@ namespace TriangleLib
                 var triangle = new Triangle(
                         vertices[startIndex + 0],
                         vertices[startIndex + 1]);
-
-                if (_mode == DelaunayTriangulationMode.Conforming)
-                    _pslg.RemoveEdge(triangle.E0);
 
                 return new List<Triangle> { triangle };
             }
@@ -112,9 +63,6 @@ namespace TriangleLib
             var triangles = new List<Triangle>();
 
             var baseEdge = FindBottomMostEdge(leftTriangles, rightTriangles);
-
-            if (_mode == DelaunayTriangulationMode.Conforming)
-                _pslg.RemoveEdge(baseEdge);
 
             while (true)
             {
@@ -150,13 +98,6 @@ namespace TriangleLib
 
                 var triangle = new Triangle(v0, v1, v2);
                 triangles.Add(triangle);
-                
-                if (_mode == DelaunayTriangulationMode.Conforming)
-                {
-                    _pslg.RemoveEdge(triangle.E0);
-                    _pslg.RemoveEdge(triangle.E1);
-                    _pslg.RemoveEdge(triangle.E2);
-                }
 
                 baseEdge = leftRightEdge;
             }
@@ -374,7 +315,7 @@ namespace TriangleLib
             {
                 var findParams = BuildFindCandidateParams(side, baseEdge, oppositeTriangles.Concat(triangles).ToList());
                 var findResult = FindCandidate(findParams);
-                
+
                 if (findResult.Candidate == null)
                     break;
 
@@ -395,105 +336,10 @@ namespace TriangleLib
 
                 DeleteEdge(edge, ref triangles);
 
-                if (_mode == DelaunayTriangulationMode.Conforming)
-                {
-                    //if candidate is from pslg, its possible that it does not belong to any triangle yet.
-                    //this will be true when its not yet connected to its next potential candidate
-                    //so, we must create two new triangles connecting it to the already merged set
-                    var candidateIsNotConnectedToMergedTriangles = nextPotentialCandidate.Find(candidate) == null;
-
-                    if (candidateIsNotConnectedToMergedTriangles)
-                        ConnectCandidateToMergedTriangles(
-                            candidate, 
-                            nextPotentialCandidate, 
-                            findParams.BaseVertex, 
-                            ref triangles);
-                    else
-                        RefineEdge(edge, nextPotentialCandidate, ref triangles);
-                }
-
                 candidate = null;
             }
 
             return candidate;
-        }
-
-        private void RefineEdge(Edge edge, Vertex nextPotentialCandidate, ref List<Triangle> triangles)
-        {
-            var midVertex = new Vertex(edge.MidPoint);
-
-            var e0 = new Edge(edge.V0, midVertex);
-            var e1 = new Edge(midVertex, edge.V1);
-
-            _pslg.RemoveEdge(edge);
-            _pslg.Edges.Add(e0);
-            _pslg.Edges.Add(e1);
-
-            var t0 = new Triangle(midVertex, edge.V0, nextPotentialCandidate);
-            var t1 = new Triangle(midVertex, nextPotentialCandidate, edge.V1);
-
-            triangles.Add(t0);
-            triangles.Add(t1);
-
-            //it must be a loop, because after we flip an edge, maybe we mess with the other edges.
-            //is delaunay edge?
-            var flippingEdge0 = edge.V0.Find(nextPotentialCandidate);
-            if (!Edge.IsDelaunay(flippingEdge0))
-            {
-                var flippedEdge0 = flippingEdge0.FlipEdge();
-
-                DeleteEdge(flippingEdge0, ref triangles);
-
-                t0 = new Triangle(flippingEdge0.V0, flippedEdge0.V0, flippedEdge0.V1);
-                t1 = new Triangle(flippingEdge0.V1, flippedEdge0.V1, flippedEdge0.V0);
-
-                triangles.Add(t0);
-                triangles.Add(t1);
-            }
-
-            var flippingEdge1 = edge.V1.Find(nextPotentialCandidate);
-
-            if (!Edge.IsDelaunay(flippingEdge1))
-            {
-                var flippedEdge1 = flippingEdge1.FlipEdge();
-
-                DeleteEdge(flippingEdge1, ref triangles);
-
-                t0 = new Triangle(flippingEdge1.V0, flippedEdge1.V1, flippedEdge1.V0);
-                t1 = new Triangle(flippingEdge1.V1, flippedEdge1.V0, flippedEdge1.V1);
-
-                triangles.Add(t0);
-                triangles.Add(t1);
-            }
-        }
-
-        private void ConnectCandidateToMergedTriangles(Vertex candidate, Vertex nextPotentialCandidate, Vertex baseVertex, ref List<Triangle> triangles)
-        {
-            double max = double.MinValue;
-            Vertex closestVertexFromCandidate = null;
-
-            // find vertex of the next potential candidate that is closest to the candidate
-            foreach (var e in nextPotentialCandidate.Edges)
-            {
-                if (e.V0 == baseVertex || e.V1 == baseVertex)
-                    continue;
-
-                var v0 = candidate.Position - nextPotentialCandidate.Position;
-                var v1 = e.V0 == nextPotentialCandidate ? e.V1 : e.V0;
-
-                var dot = Vec2.Dot(Vec2.Normalize(v0), Vec2.Normalize(v1.Position - nextPotentialCandidate.Position));
-                if (dot > max)
-                {
-                    max = dot;
-                    closestVertexFromCandidate = v1;
-                }
-            }
-
-            var t0 = new Triangle(candidate, baseVertex, nextPotentialCandidate);
-            var t1 = new Triangle(candidate, nextPotentialCandidate, closestVertexFromCandidate);
-
-            triangles.Add(t0);
-            triangles.Add(t1);
         }
 
         private void DeleteEdge(Edge edge, ref List<Triangle> triangles)
@@ -517,8 +363,8 @@ namespace TriangleLib
         }
 
         private FindCandidateParams BuildFindCandidateParams(
-            TrianglesDivideSide side, 
-            Edge baseEdge, 
+            TrianglesDivideSide side,
+            Edge baseEdge,
             List<Triangle> triangles)
         {
             var findParams = new FindCandidateParams();
@@ -539,43 +385,6 @@ namespace TriangleLib
             }
 
             findParams.Edges = findParams.BaseVertex.Edges;
-
-            //NOTE: try adding edges to the vertices when creating the pslg
-            if (_mode == DelaunayTriangulationMode.Conforming)
-            {
-                //select all the edges from the pslg that share the base vertex, except the base edge
-                var pslgEdges = _pslg.Edges.Where(e =>
-                    (!(e.V0.Position == baseEdge.V0.Position && e.V1.Position == baseEdge.V1.Position) &&
-                     !(e.V1.Position == baseEdge.V0.Position && e.V0.Position == baseEdge.V1.Position)) &&
-                    (e.V0.Position == findParams.BaseVertex.Position || e.V1.Position == findParams.BaseVertex.Position));
-
-                //filter out all pslg edges also present in the base vertex edges
-                pslgEdges = pslgEdges.Where(e0 => findParams.Edges.FirstOrDefault(e1 =>
-                     (e0.V0.Position == e1.V0.Position && e0.V1.Position == e1.V1.Position) ||
-                     (e0.V1.Position == e1.V0.Position && e0.V0.Position == e1.V1.Position)) == null);
-
-                //filter out all pslg edges not present in the current triangle set
-                pslgEdges = pslgEdges.Where(e => triangles.FirstOrDefault(
-                    t0 =>
-                    (t0.V0 != null && e.V0.Position == t0.V0.Position) ||
-                    (t0.V1 != null && e.V0.Position == t0.V1.Position) ||
-                    (t0.V2 != null && e.V0.Position == t0.V2.Position)) != null);
-
-                pslgEdges = pslgEdges.Where(e => triangles.FirstOrDefault(
-                    t0 =>
-                    (t0.V0 != null && e.V1.Position == t0.V0.Position) ||
-                    (t0.V1 != null && e.V1.Position == t0.V1.Position) ||
-                    (t0.V2 != null && e.V1.Position == t0.V2.Position)) != null);
-
-                //join edges
-                findParams.Edges = findParams.Edges.Concat(pslgEdges).ToList();
-
-                //edges must be ordered by angle so the algorithm can work
-                //and as we have to insert the pslg edges into the list of edges for the current base vertex
-                //we must sort them
-                var edgeComparer = new EdgeAngleComparer(findParams.BaseVertex);
-                findParams.Edges.Sort(edgeComparer);
-            }
 
             return findParams;
         }
