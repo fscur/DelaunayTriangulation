@@ -34,11 +34,17 @@ namespace TriangleLib
             return _edges.FirstOrDefault(e => (e.V0 == v0 && e.V1 == v1) || (e.V0 == v1 && e.V1 == v0));
         }
 
-        internal void RemoveEdge(Edge edge)
+        public void RemoveEdge(Edge edge)
         {
             var e = Find(edge);
             if (e != null)
                 Edges.Remove(e);
+        }
+
+        public void AddEdge(Edge edge)
+        {
+            if (!Contains(edge))
+                Edges.Add(edge);
         }
     }
 }

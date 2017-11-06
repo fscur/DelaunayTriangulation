@@ -204,17 +204,28 @@ namespace Trianglex
 
             /////////////////////////////////////////
 
-            _points.Add(new Vec2() { X = 0.0, Y = 50.0 });
-            _points.Add(new Vec2() { X = 50.0, Y = 0.0 });
-            _points.Add(new Vec2() { X = 100.0, Y = 50.0 });
-            _points.Add(new Vec2() { X = 50.0, Y = 100.0 });
-            _points.Add(new Vec2() { X = 50.0, Y = 150.0 });
-            _points.Add(new Vec2() { X = 150.0, Y = 150.0 });
-            _points.Add(new Vec2() { X = 250.0, Y = 150.0 });
-            _points.Add(new Vec2() { X = 200.0, Y = 100.0 });
-            _points.Add(new Vec2() { X = 250.0, Y = 50.0 });
-            _points.Add(new Vec2() { X = 250.0, Y = 0.0 });
-            _points.Add(new Vec2() { X = 250.0, Y = 75.0 });
+            //_points.Add(new Vec2() { X = 0.0, Y = 50.0 });
+            //_points.Add(new Vec2() { X = 50.0, Y = 0.0 });
+            //_points.Add(new Vec2() { X = 100.0, Y = 50.0 });
+            //_points.Add(new Vec2() { X = 50.0, Y = 100.0 });
+            //_points.Add(new Vec2() { X = 50.0, Y = 150.0 });
+            //_points.Add(new Vec2() { X = 150.0, Y = 150.0 });
+            //_points.Add(new Vec2() { X = 250.0, Y = 150.0 });
+            //_points.Add(new Vec2() { X = 200.0, Y = 100.0 });
+            //_points.Add(new Vec2() { X = 250.0, Y = 50.0 });
+            //_points.Add(new Vec2() { X = 250.0, Y = 0.0 });
+            //_points.Add(new Vec2() { X = 250.0, Y = 75.0 });
+
+            _points.Add(new Vec2() { X = 400.0, Y = -1500.0 });
+            _points.Add(new Vec2() { X = 650.0, Y = -1000.0 });
+            _points.Add(new Vec2() { X = 1000.0, Y = -300.0 });
+            _points.Add(new Vec2() { X = 1400.0, Y = 500.0 });
+            _points.Add(new Vec2() { X = 400.0, Y = 500.0 });
+            _points.Add(new Vec2() { X = 400.0, Y = 0.0 });
+            _points.Add(new Vec2() { X = 400.0, Y = -1000.0 });
+            _points.Add(new Vec2() { X = 1000.0, Y = -50.0 });
+            _points.Add(new Vec2() { X = 1000.0, Y = 0.0 });
+            _points.Add(new Vec2() { X = 950.0, Y = 0.0 });
 
             var v00 = new Vertex(_points[0]);
             var v01 = new Vertex(_points[1]);
@@ -226,7 +237,6 @@ namespace Trianglex
             var v07 = new Vertex(_points[7]);
             var v08 = new Vertex(_points[8]);
             var v09 = new Vertex(_points[9]);
-            var v10 = new Vertex(_points[10]);
 
             _pslg.Edges.Add(new Edge(v00, v01));
             _pslg.Edges.Add(new Edge(v01, v02));
@@ -234,12 +244,12 @@ namespace Trianglex
             _pslg.Edges.Add(new Edge(v03, v04));
             _pslg.Edges.Add(new Edge(v04, v05));
             _pslg.Edges.Add(new Edge(v05, v06));
-            _pslg.Edges.Add(new Edge(v06, v07));
+            _pslg.Edges.Add(new Edge(v06, v00));
+            _pslg.Edges.Add(new Edge(v06, v01));
+            _pslg.Edges.Add(new Edge(v02, v07));
             _pslg.Edges.Add(new Edge(v07, v08));
             _pslg.Edges.Add(new Edge(v08, v09));
             _pslg.Edges.Add(new Edge(v09, v05));
-            _pslg.Edges.Add(new Edge(v04, v02));
-            _pslg.Edges.Add(new Edge(v07, v10));
 
             //***************************
             //new Vec2(100, 100) +

@@ -74,22 +74,30 @@ namespace TriangleLib
 
             if (pointsCount == 3)
             {
-                return new List<Triangle>
+                var triangle = new Triangle(
+                    vertices[startIndex + 0],
+                    vertices[startIndex + 1],
+                    vertices[startIndex + 2]);
+
+                if (_mode == DelaunayTriangulationMode.Conforming)
                 {
-                    new Triangle(
-                        vertices[startIndex + 0],
-                        vertices[startIndex + 1],
-                        vertices[startIndex + 2])
-                };
+                    _pslg.RemoveEdge(triangle.E0);
+                    _pslg.RemoveEdge(triangle.E1);
+                    _pslg.RemoveEdge(triangle.E2);
+                }
+
+                return new List<Triangle> { triangle };
             }
             else if (pointsCount == 2)
             {
-                return new List<Triangle>
-                {
-                    new Triangle(
+                var triangle = new Triangle(
                         vertices[startIndex + 0],
-                        vertices[startIndex + 1])
-                };
+                        vertices[startIndex + 1]);
+
+                if (_mode == DelaunayTriangulationMode.Conforming)
+                    _pslg.RemoveEdge(triangle.E0);
+
+                return new List<Triangle> { triangle };
             }
 
             var midIndex = (startIndex + endIndex) / 2;
@@ -131,6 +139,14 @@ namespace TriangleLib
                 var v0 = baseEdge.V0;
                 var v1 = baseEdge.V1;
                 var v2 = leftRightEdge.V0 == v0 || leftRightEdge.V0 == v1 ? leftRightEdge.V1 : leftRightEdge.V0;
+
+                var e0 = v0.Find(v1);
+                var e1 = v1.Find(v2);
+                var e2 = v2.Find(v0);
+
+                e0.RemoveDegenerateTriangles();
+                e1.RemoveDegenerateTriangles();
+                e2.RemoveDegenerateTriangles();
 
                 var triangle = new Triangle(v0, v1, v2);
                 triangles.Add(triangle);
@@ -221,7 +237,7 @@ namespace TriangleLib
                             notAllVerticesAreInsideHull = true;
                             break;
                         }
-                        else if (Compare.Equals(sin, 0.0) && Compare.Greater(edge.Length, Vec2.Length(v1)))
+                        else if (Compare.Equals(sin, 0.0) && Compare.Greater(Vec2.Dot(v0, v1), 0.0) && Compare.Greater(edge.Length, Vec2.Length(v1)))
                         {
                             verticesAreCollinearAndEdgeContainsVertex = true;
                             break;
@@ -248,7 +264,7 @@ namespace TriangleLib
                             notAllVerticesAreInsideHull = true;
                             break;
                         }
-                        else if (Compare.Equals(sin, 0.0) && Compare.Greater(edge.Length, Vec2.Length(v1)))
+                        else if (Compare.Equals(sin, 0.0) && Compare.Greater(Vec2.Dot(v0, v1), 0.0) && Compare.Greater(edge.Length, Vec2.Length(v1)))
                         {
                             verticesAreCollinearAndEdgeContainsVertex = true;
                             break;
@@ -367,7 +383,6 @@ namespace TriangleLib
 
                 //if found candidate, see if its circumcircle contains the next potential candidate
                 //if it does not, then we are good to go
-                //if it does, we have to remove its edge and start all over
                 var a = candidate.Position;
                 var b = baseEdge.V0.Position;
                 var c = baseEdge.V1.Position;
@@ -382,7 +397,7 @@ namespace TriangleLib
 
                 if (_mode == DelaunayTriangulationMode.Conforming)
                 {
-                    //if candidate is from pslg, its possible that it does not belong to any triangle yet
+                    //if candidate is from pslg, its possible that it does not belong to any triangle yet.
                     //this will be true when its not yet connected to its next potential candidate
                     //so, we must create two new triangles connecting it to the already merged set
                     var candidateIsNotConnectedToMergedTriangles = nextPotentialCandidate.Find(candidate) == null;
@@ -420,6 +435,7 @@ namespace TriangleLib
             triangles.Add(t0);
             triangles.Add(t1);
 
+            //it must be a loop, because after we flip an edge, maybe we mess with the other edges.
             //is delaunay edge?
             var flippingEdge0 = edge.V0.Find(nextPotentialCandidate);
             if (!Edge.IsDelaunay(flippingEdge0))
@@ -524,6 +540,7 @@ namespace TriangleLib
 
             findParams.Edges = findParams.BaseVertex.Edges;
 
+            //NOTE: try adding edges to the vertices when creating the pslg
             if (_mode == DelaunayTriangulationMode.Conforming)
             {
                 //select all the edges from the pslg that share the base vertex, except the base edge

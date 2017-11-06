@@ -78,7 +78,11 @@ namespace TriangleLib
             if (Triangles.Count < 2)
                 return null;
 
-            var t = Triangles[0] != triangle ? Triangles[0] : Triangles[1];
+            var t = Triangles.FirstOrDefault(t0 => t0 != triangle && t0.E0 != null && t0.E1 != null && t0.E2 != null);
+
+            if (t == null)
+                return V0;
+            //var t = Triangles[0] != triangle ? Triangles[0] : Triangles[1];
 
             if ((t.V0 == V0 && t.V1 == V1) || (t.V0 == V1 && t.V1 == V0))
                 return t.V2;
@@ -92,14 +96,30 @@ namespace TriangleLib
 
         public static bool IsDelaunay(Edge edge)
         {
-            if (edge.Triangles.Count < 2)
-                return true;
+            try {
+                if (edge.Triangles.Count < 2)
+                    return true;
 
-            var t0 = edge.Triangles[0];
+                var t0 = edge.Triangles.FirstOrDefault(t=>t.E0 != null && t.E1 != null && t.E2 != null);
 
-            var p = edge.FindOppositeVertex(t0).Position;
+                Vec2 p = null;
 
-            return !Triangle.CircumcircleContainsPoint(t0, p);
+                if (t0 == null)
+                {
+                    t0 = edge.Triangles[0];
+                    p = edge.FindOppositeVertex(t0).Position;
+                    return Compare.Greater(Vec2.Length(p-edge.MidPoint), Vec2.Length(edge.V0.Position - edge.MidPoint));
+                }
+
+                p = edge.FindOppositeVertex(t0).Position;
+
+                return !Triangle.CircumcircleContainsPoint(t0, p);
+            }
+            catch(Exception e)
+            {
+
+            }
+            return false;
         }
 
         public Edge FlipEdge()
@@ -129,6 +149,55 @@ namespace TriangleLib
 
             var direction = testVertex.Position - vertex.Position;
             return (Math.Atan2(direction.Y, direction.X) + 2.0 * Math.PI) % (2.0 * Math.PI);
+        }
+
+        internal void RemoveDegenerateTriangles()
+        {
+            Triangles.RemoveAll(t => t.E0 == null || t.E2 == null || t.E2 == null);
+        }
+
+        public struct EdgeIntersection
+        {
+            public bool Intersects;
+            public double S;
+            public double T;
+            public Vec2 Position;
+        }
+
+        public static EdgeIntersection Intersect(Edge t, Edge s)
+        {
+            var x0 = t.V0.Position.X;
+            var x1 = t.V1.Position.X;
+            var y0 = t.V0.Position.Y;
+            var y1 = t.V1.Position.Y;
+            var x2 = s.V0.Position.X;
+            var x3 = s.V1.Position.X;
+            var y2 = s.V0.Position.Y;
+            var y3 = s.V1.Position.Y;
+
+            var x10 = x1 - x0;
+            var y10 = y1 - y0;
+            var x32 = x3 - x2;
+            var y32 = y3 - y2;
+
+            var det = x32 * y10 - x10 * y32;
+
+            if (Compare.AlmostEqual(det, 0.0))
+                return new EdgeIntersection() { Intersects = false };
+
+            var x20 = x2 - x0;
+            var y20 = y2 - y0;
+
+            var S = (x32 * y20 - x20 * y32) / det;
+            var T = (x10 * y20 - x20 * y10) / det;
+
+            return new EdgeIntersection()
+            {
+                Intersects = true,
+                S = S,
+                T = T,
+                Position = t.V0.Position + T * (t.V1.Position - t.V0.Position)
+            };
         }
     }
 }
