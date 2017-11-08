@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TriangleLib
 {
-    //planar straigh line graph
+    //planar straight line graph
     public class PSLG
     {
         private List<Edge> _edges;

@@ -75,14 +75,16 @@ namespace TriangleLib
 
         public Vertex FindOppositeVertex(Triangle triangle)
         {
-            if (Triangles.Count < 2)
+            if (Triangles.Count < 1)
                 return null;
 
-            var t = Triangles.FirstOrDefault(t0 => t0 != triangle && t0.E0 != null && t0.E1 != null && t0.E2 != null);
+            var t = triangle;
+
+            if (Triangles.Count == 2)
+                t = Triangles.FirstOrDefault(t0 => t0 != triangle && t0.E0 != null && t0.E1 != null && t0.E2 != null);
 
             if (t == null)
                 return V0;
-            //var t = Triangles[0] != triangle ? Triangles[0] : Triangles[1];
 
             if ((t.V0 == V0 && t.V1 == V1) || (t.V0 == V1 && t.V1 == V0))
                 return t.V2;
@@ -96,30 +98,25 @@ namespace TriangleLib
 
         public static bool IsDelaunay(Edge edge)
         {
-            try {
-                if (edge.Triangles.Count < 2)
-                    return true;
+            var triangles = edge.Triangles.Where(t => !Triangle.IsDegenerate(t)).ToList();
 
-                var t0 = edge.Triangles.FirstOrDefault(t=>t.E0 != null && t.E1 != null && t.E2 != null);
+            if (triangles.Count < 2)
+                return true;
 
-                Vec2 p = null;
+            var t0 = triangles[0];
 
-                if (t0 == null)
-                {
-                    t0 = edge.Triangles[0];
-                    p = edge.FindOppositeVertex(t0).Position;
-                    return Compare.Greater(Vec2.Length(p-edge.MidPoint), Vec2.Length(edge.V0.Position - edge.MidPoint));
-                }
+            Vec2 p = edge.FindOppositeVertex(t0).Position;
 
-                p = edge.FindOppositeVertex(t0).Position;
+            //if (t0 == null)
+            //{
+            //    t0 = triangles[0];
+            //    p = edge.FindOppositeVertex(t0).Position;
+            //    return Compare.Greater(Vec2.Length(p - edge.MidPoint), Vec2.Length(edge.V0.Position - edge.MidPoint));
+            //}
 
-                return !Triangle.CircumcircleContainsPoint(t0, p);
-            }
-            catch(Exception e)
-            {
+            //p = edge.FindOppositeVertex(t0).Position;
 
-            }
-            return false;
+            return !Triangle.CircumcircleContainsPoint(t0, p);
         }
 
         public Edge FlipEdge()
@@ -159,21 +156,24 @@ namespace TriangleLib
         public struct EdgeIntersection
         {
             public bool Intersects;
+            public Edge E0;
+            public Edge E1;
             public double S;
             public double T;
-            public Vec2 Position;
+            public Vertex Vertex;
         }
 
-        public static EdgeIntersection Intersect(Edge t, Edge s)
+        public static EdgeIntersection Intersect(Edge e0, Edge e1)
         {
-            var x0 = t.V0.Position.X;
-            var x1 = t.V1.Position.X;
-            var y0 = t.V0.Position.Y;
-            var y1 = t.V1.Position.Y;
-            var x2 = s.V0.Position.X;
-            var x3 = s.V1.Position.X;
-            var y2 = s.V0.Position.Y;
-            var y3 = s.V1.Position.Y;
+            var x0 = e0.V0.Position.X;
+            var x1 = e0.V1.Position.X;
+            var y0 = e0.V0.Position.Y;
+            var y1 = e0.V1.Position.Y;
+
+            var x2 = e1.V0.Position.X;
+            var x3 = e1.V1.Position.X;
+            var y2 = e1.V0.Position.Y;
+            var y3 = e1.V1.Position.Y;
 
             var x10 = x1 - x0;
             var y10 = y1 - y0;
@@ -188,15 +188,20 @@ namespace TriangleLib
             var x20 = x2 - x0;
             var y20 = y2 - y0;
 
-            var S = (x32 * y20 - x20 * y32) / det;
-            var T = (x10 * y20 - x20 * y10) / det;
+            var t = (x32 * y20 - x20 * y32) / det;
+            var s = (x10 * y20 - x20 * y10) / det;
+
+            var a = e0.V0.Position + t * (e0.V1.Position - e0.V0.Position);
+            var b = e1.V0.Position + s * (e1.V1.Position - e1.V0.Position);
 
             return new EdgeIntersection()
             {
                 Intersects = true,
-                S = S,
-                T = T,
-                Position = t.V0.Position + T * (t.V1.Position - t.V0.Position)
+                E0 = e0,
+                E1 = e1,
+                S = s,
+                T = t,
+                Vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position))
             };
         }
     }

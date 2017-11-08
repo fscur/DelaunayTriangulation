@@ -216,16 +216,16 @@ namespace Trianglex
             //_points.Add(new Vec2() { X = 250.0, Y = 0.0 });
             //_points.Add(new Vec2() { X = 250.0, Y = 75.0 });
 
-            _points.Add(new Vec2() { X = 400.0, Y = -1500.0 });
-            _points.Add(new Vec2() { X = 650.0, Y = -1000.0 });
-            _points.Add(new Vec2() { X = 1000.0, Y = -300.0 });
-            _points.Add(new Vec2() { X = 1400.0, Y = 500.0 });
-            _points.Add(new Vec2() { X = 400.0, Y = 500.0 });
-            _points.Add(new Vec2() { X = 400.0, Y = 0.0 });
-            _points.Add(new Vec2() { X = 400.0, Y = -1000.0 });
-            _points.Add(new Vec2() { X = 1000.0, Y = -50.0 });
-            _points.Add(new Vec2() { X = 1000.0, Y = 0.0 });
-            _points.Add(new Vec2() { X = 950.0, Y = 0.0 });
+            _points.Add(new Vec2() { X = 400.0, Y = -1500.0 }); //0
+            _points.Add(new Vec2() { X = 650.0, Y = -1000.0 }); //1
+            _points.Add(new Vec2() { X = 1000.0, Y = -300.0 }); //2
+            _points.Add(new Vec2() { X = 1400.0, Y = 500.0 }); //3
+            _points.Add(new Vec2() { X = 400.0, Y = 500.0 }); //4
+            _points.Add(new Vec2() { X = 400.0, Y = 0.0 }); //5
+            _points.Add(new Vec2() { X = 400.0, Y = -1000.0 }); //6
+            _points.Add(new Vec2() { X = 1000.0, Y = -50.0 }); //7
+            _points.Add(new Vec2() { X = 1000.0, Y = 0.0 }); //8
+            _points.Add(new Vec2() { X = 950.0, Y = 0.0 }); //9
 
             var v00 = new Vertex(_points[0]);
             var v01 = new Vertex(_points[1]);
@@ -238,18 +238,77 @@ namespace Trianglex
             var v08 = new Vertex(_points[8]);
             var v09 = new Vertex(_points[9]);
 
-            _pslg.Edges.Add(new Edge(v00, v01));
-            _pslg.Edges.Add(new Edge(v01, v02));
-            _pslg.Edges.Add(new Edge(v02, v03));
-            _pslg.Edges.Add(new Edge(v03, v04));
-            _pslg.Edges.Add(new Edge(v04, v05));
-            _pslg.Edges.Add(new Edge(v05, v06));
-            _pslg.Edges.Add(new Edge(v06, v00));
-            _pslg.Edges.Add(new Edge(v06, v01));
-            _pslg.Edges.Add(new Edge(v02, v07));
-            _pslg.Edges.Add(new Edge(v07, v08));
-            _pslg.Edges.Add(new Edge(v08, v09));
-            _pslg.Edges.Add(new Edge(v09, v05));
+            var e00 = new Edge(v00, v01);
+            var e01 = new Edge(v01, v02);
+            var e02 = new Edge(v02, v03);
+            var e03 = new Edge(v03, v04);
+            var e04 = new Edge(v04, v05);
+            var e05 = new Edge(v05, v06);
+            var e06 = new Edge(v06, v00);
+            var e07 = new Edge(v06, v01);
+            var e08 = new Edge(v02, v07);
+            var e09 = new Edge(v07, v08);
+            var e10 = new Edge(v08, v09);
+            var e11 = new Edge(v09, v05);
+            var e12 = new Edge(v01, v04);
+            var e13 = new Edge(v06, v08);
+
+            //v00.AddEdge(e00);
+            //v01.AddEdge(e00);
+
+            //v02.AddEdge(e01);
+            //v01.AddEdge(e01);
+
+            //v02.AddEdge(e02);
+            //v03.AddEdge(e02);
+
+            //v03.AddEdge(e03);
+            //v04.AddEdge(e03);
+
+            //v04.AddEdge(e04);
+            //v05.AddEdge(e04);
+
+            //v05.AddEdge(e05);
+            //v06.AddEdge(e05);
+
+            //v06.AddEdge(e06);
+            //v00.AddEdge(e06);
+
+            //v06.AddEdge(e07);
+            //v01.AddEdge(e07);
+
+            //v02.AddEdge(e08);
+            //v07.AddEdge(e08);
+
+            //v07.AddEdge(e09);
+            //v08.AddEdge(e09);
+
+            //v08.AddEdge(e10);
+            //v09.AddEdge(e10);
+
+            //v09.AddEdge(e11);
+            //v05.AddEdge(e11);
+
+            //v01.AddEdge(e12);
+            //v04.AddEdge(e12);
+
+            //v06.AddEdge(e13);
+            //v08.AddEdge(e13);
+
+            _pslg.Edges.Add(e00);
+            _pslg.Edges.Add(e01);
+            _pslg.Edges.Add(e02);
+            _pslg.Edges.Add(e03);
+            _pslg.Edges.Add(e04);
+            _pslg.Edges.Add(e05);
+            _pslg.Edges.Add(e06);
+            _pslg.Edges.Add(e07);
+            _pslg.Edges.Add(e08);
+            _pslg.Edges.Add(e09);
+            _pslg.Edges.Add(e10);
+            _pslg.Edges.Add(e11);
+            _pslg.Edges.Add(e12);
+            //_pslg.Edges.Add(e13);
 
             //***************************
             //new Vec2(100, 100) +

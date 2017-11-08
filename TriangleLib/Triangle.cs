@@ -90,6 +90,15 @@ namespace TriangleLib
             E0.Triangles.Add(this);
         }
         
+        public static bool IsDegenerate(Triangle t)
+        {
+            if (t.V0 == null | t.V1 == null | t.V2 == null)
+                return true;
+
+            var cross = Vec2.Cross(t.V1.Position - t.V0.Position, t.V2.Position - t.V0.Position);
+            return Compare.AlmostEqual(cross, 0.0);
+        }
+
         public static bool Contains(Triangle t, Vec2 point)
         {
             if (t.V0 == null || t.V1 == null || t.V2 == null)

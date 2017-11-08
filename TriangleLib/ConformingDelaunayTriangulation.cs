@@ -13,7 +13,7 @@ namespace TriangleLib
         {
             _pslg = pslg;
         }
-
+        
         public static List<Triangle> Triangulate(PSLG pslg)
         {
             if (pslg == null)
@@ -22,9 +22,123 @@ namespace TriangleLib
             if (pslg.Edges.Count == 0)
                 return new List<Triangle>();
 
+            var triangulation = new ConformingDelaunayTriangulation(pslg);
+            triangulation.PreProcess();
+            return triangulation.Execute();
+        }
+
+        //before starting the triangulation, we have to find the pslg edges intersections 
+        //and send them to the algorithm as vertices to be triangulated.
+        //also, we have to split these intersecting edges in every intersecting vertex found
+        private void PreProcess()
+        {
+            _pslg = CreatePSLGIntersections(_pslg);
+        }
+
+        private static PSLG CreatePSLGIntersections(PSLG pslg)
+        {
+            var pslgIntersections = FindPSLGIntersections(pslg);
+
+            foreach (var edge in pslgIntersections.Keys)
+            {
+                //we must order edges by t or s param, so we can split the edges from v0 to v1
+                var edgeIntersections = OrderPSLGEdgeIntersections(pslgIntersections, edge);
+                SplitPSLGEdge(pslg, edge, edgeIntersections);
+            }
+
+            return pslg;
+        }
+
+        private static void SplitPSLGEdge(PSLG pslg, Edge edge, List<Tuple<double, Edge.EdgeIntersection>> edgeIntersections)
+        {
+            Vertex v0 = edge.V0;
+            Vertex v1 = null;
+            Edge newEdge = null;
+            v0.RemoveEdge(edge);
+
+            pslg.RemoveEdge(edge);
+
+            for (int i = 0; i < edgeIntersections.Count; i++)
+            {
+                var intersection = edgeIntersections[i].Item2;
+                v1 = intersection.Vertex;
+
+                newEdge = new Edge(v0, v1);
+                pslg.AddEdge(newEdge);
+
+                v0 = v1;
+            }
+
+            v1 = edge.V1;
+            v1.RemoveEdge(edge);
+
+            newEdge = new Edge(v0, v1);
+            pslg.AddEdge(newEdge);
+        }
+
+        private static List<Tuple<double, Edge.EdgeIntersection>> OrderPSLGEdgeIntersections(Dictionary<Edge, List<Edge.EdgeIntersection>> edgeIntersections, Edge edge)
+        {
+            var orderedIntersections = new List<Tuple<double, Edge.EdgeIntersection>>();
+
+            foreach (var edgeIntersection in edgeIntersections[edge])
+            {
+                if (edgeIntersection.E0 == edge)
+                    orderedIntersections.Add(new Tuple<double, Edge.EdgeIntersection>(edgeIntersection.T, edgeIntersection));
+                else
+                    orderedIntersections.Add(new Tuple<double, Edge.EdgeIntersection>(edgeIntersection.S, edgeIntersection));
+            }
+            
+            return orderedIntersections.OrderBy(i => i.Item1).ToList();
+        }
+
+        private static Dictionary<Edge, List<Edge.EdgeIntersection>> FindPSLGIntersections(PSLG pslg)
+        {
+            var edgeIntersections = new Dictionary<Edge, List<Edge.EdgeIntersection>>();
+
+            for (int i = 0; i < pslg.Edges.Count - 1; i++)
+            {
+                var e0 = pslg.Edges[i];
+
+                for (int j = i + 1; j < pslg.Edges.Count; j++)
+                {
+                    var e1 = pslg.Edges[j];
+
+                    var intersection = Edge.Intersect(e0, e1);
+
+                    if (intersection.Intersects)
+                    {
+                        if (Compare.Greater(intersection.S, 0.0) &&
+                            Compare.Less(intersection.S, 1.0) &&
+                            Compare.Greater(intersection.T, 0.0) &&
+                            Compare.Less(intersection.T, 1.0))
+                        {
+                            if (!edgeIntersections.ContainsKey(e0))
+                                edgeIntersections.Add(e0, new List<Edge.EdgeIntersection>() { intersection });
+                            else
+                                edgeIntersections[e0].Add(intersection);
+
+                            if (!edgeIntersections.ContainsKey(e1))
+                                edgeIntersections.Add(e1, new List<Edge.EdgeIntersection>() { intersection });
+                            else
+                                edgeIntersections[e1].Add(intersection);
+                        }
+                    }
+                }
+            }
+
+            return edgeIntersections;
+        }
+        
+        //divide and conquer:
+        //order points by X and Y coordinate
+        //split point set until each division has 2 or 3 points
+        //triangulate each division and merge
+
+        private List<Triangle> Execute()
+        {
             var vertices = new List<Vertex>();
 
-            foreach (var edge in pslg.Edges)
+            foreach (var edge in _pslg.Edges)
             {
                 if (!vertices.Contains(edge.V0))
                     vertices.Add(edge.V0);
@@ -36,17 +150,6 @@ namespace TriangleLib
             if (vertices.Count < 3)
                 throw new ArgumentException("There must be at least three vertices to triangulate.");
 
-            var triangulation = new ConformingDelaunayTriangulation(pslg);
-            return triangulation.ExecuteTriangulation(vertices);
-        }
-
-        //divide and conquer:
-        //order points by X and Y coordinate
-        //split point set until each division has 2 or 3 points
-        //triangulate each division and merge
-
-        private List<Triangle> ExecuteTriangulation(IEnumerable<Vertex> vertices)
-        {
             var orderedVertices = vertices.OrderBy(p => p.Position.X).ThenBy(p => p.Position.Y).ToList();
             var triangles = DivideAndTriangulate(orderedVertices, 0, vertices.Count() - 1);
             return triangles;
@@ -63,11 +166,9 @@ namespace TriangleLib
                     vertices[startIndex + 1],
                     vertices[startIndex + 2]);
 
-
                 _pslg.RemoveEdge(triangle.E0);
                 _pslg.RemoveEdge(triangle.E1);
                 _pslg.RemoveEdge(triangle.E2);
-
 
                 return new List<Triangle> { triangle };
             }
@@ -112,8 +213,11 @@ namespace TriangleLib
 
                 if (leftRightEdge == null && leftCandidate == rightCandidate)
                 {
-                    triangles.Add(new Triangle(baseEdge.V0, baseEdge.V1, leftCandidate));
-
+                    var t = new Triangle(baseEdge.V0, baseEdge.V1, leftCandidate);
+                    triangles.Add(t);
+                    _pslg.RemoveEdge(t.E0);
+                    _pslg.RemoveEdge(t.E1);
+                    _pslg.RemoveEdge(t.E2);
                     break;
                 }
 
@@ -136,12 +240,11 @@ namespace TriangleLib
                 _pslg.RemoveEdge(triangle.E1);
                 _pslg.RemoveEdge(triangle.E2);
 
-
                 baseEdge = leftRightEdge;
             }
 
-            triangles.AddRange(leftTriangles.Where(t => t.V0 != null && t.V1 != null && t.V2 != null));
-            triangles.AddRange(rightTriangles.Where(t => t.V0 != null && t.V1 != null && t.V2 != null));
+            triangles.AddRange(leftTriangles.Where(t => !Triangle.IsDegenerate(t)));
+            triangles.AddRange(rightTriangles.Where(t => !Triangle.IsDegenerate(t)));
 
             return triangles;
         }
@@ -275,9 +378,12 @@ namespace TriangleLib
             //found 2 candidates? see which is inside which circumcircles...
             if (leftCandidate == rightCandidate)
             {
-                if (baseEdge.V0.Find(leftCandidate) == null)
+                var a = _pslg.Find(baseEdge.V0, leftCandidate);
+                var b = _pslg.Find(baseEdge.V1, rightCandidate);
+
+                if (a != null)
                     selectedSide = TrianglesDivideSide.Right;
-                else if (baseEdge.V1.Find(rightCandidate) == null)
+                else if (b != null)
                     selectedSide = TrianglesDivideSide.Left;
             }
             else if (rightCandidate == null)
@@ -357,7 +463,47 @@ namespace TriangleLib
                 if (findResult.Candidate == null)
                     break;
 
+                var candidateEdge = findResult.CandidateEdge;
+                var candidateEdgeIntersection = EdgeIntersectsPSLG(candidateEdge);
+
+                if (candidateEdgeIntersection.Intersects)
+                {
+                    var pslgEdge = candidateEdge == candidateEdgeIntersection.E0 ? candidateEdgeIntersection.E1 : candidateEdgeIntersection.E0;
+
+                    DeleteEdge(candidateEdge, ref triangles);
+                    var splitVertex = candidateEdgeIntersection.Vertex;
+                    var oppositeVertex = candidateEdge.FindOppositeVertex(candidateEdge.Triangles[0]);
+
+                    if (oppositeVertex != null)
+                    {
+                        RefineEdge(candidateEdge, oppositeVertex, splitVertex, ref triangles);
+                    }
+                    else
+                    {
+                        var v0 = candidateEdge.V0;
+                        var v1 = candidateEdge.V1;
+
+                        var e0 = new Edge(v0, splitVertex);
+                        var e1 = new Edge(splitVertex, v1);
+
+                        v0.AddEdge(e0);
+                        splitVertex.AddEdge(e0);
+                        splitVertex.AddEdge(e1);
+                        v1.AddEdge(e1);
+                    }
+
+                    SplitPslgEdge(pslgEdge, splitVertex);
+                    candidate = null;
+                    continue;
+                }
+
                 candidate = findResult.Candidate;
+
+                var edgeIsFromPslg = _pslg.Find(candidateEdge) != null;
+
+                if (edgeIsFromPslg)
+                    return candidate;
+
                 var nextPotentialCandidate = findResult.NextPotentialCandidate;
 
                 //if found candidate, see if its circumcircle contains the next potential candidate
@@ -369,10 +515,8 @@ namespace TriangleLib
 
                 if (!Triangle.CircumcircleContainsPoint(a, b, c, p))
                     return candidate;
-
-                var edge = findResult.CandidateEdge;
-
-                DeleteEdge(edge, ref triangles);
+                
+                DeleteEdge(candidateEdge, ref triangles);
 
                 //if candidate is from pslg, its possible that it does not belong to any triangle yet.
                 //this will be true when its not yet connected to its next potential candidate
@@ -385,9 +529,11 @@ namespace TriangleLib
                         nextPotentialCandidate,
                         findParams.BaseVertex,
                         ref triangles);
-                else
-                    RefineEdge(edge, nextPotentialCandidate, ref triangles);
-
+                else if (!edgeIsFromPslg)
+                {
+                    var midVertex = new Vertex(candidateEdge.MidPoint);
+                    RefineEdge(candidateEdge, nextPotentialCandidate, midVertex, ref triangles);
+                }
 
                 candidate = null;
             }
@@ -395,26 +541,76 @@ namespace TriangleLib
             return candidate;
         }
 
-        private void RefineEdge(Edge edge, Vertex nextPotentialCandidate, ref List<Triangle> triangles)
+        private Edge.EdgeIntersection EdgeIntersectsPSLG(Edge candidateEdge)
         {
-            var midVertex = new Vertex(edge.MidPoint);
+            foreach (var e in _pslg.Edges)
+            {
+                var edgeIntersection = Edge.Intersect(e, candidateEdge);
 
-            var e0 = new Edge(edge.V0, midVertex);
-            var e1 = new Edge(midVertex, edge.V1);
+                if (edgeIntersection.Intersects)
+                {
+                    if (Compare.Greater(edgeIntersection.S, 0.0) &&
+                        Compare.Less(edgeIntersection.S, 1.0) &&
+                        Compare.Greater(edgeIntersection.T, 0.0) &&
+                        Compare.Less(edgeIntersection.T, 1.0))
+                    {
+                        return edgeIntersection;
+                    }
+                }
+            }
+
+            return new Edge.EdgeIntersection();
+        }
+
+        private void SplitPslgEdge(Edge edge, Vertex splitVertex)
+        {
+            var v0 = edge.V0;
+            var v1 = edge.V1;
+
+            var e0 = new Edge(v0, splitVertex);
+            var e1 = new Edge(splitVertex, v1);
 
             _pslg.RemoveEdge(edge);
-            _pslg.Edges.Add(e0);
-            _pslg.Edges.Add(e1);
+            edge.V1.RemoveEdge(edge);
+            edge.V0.RemoveEdge(edge);
 
-            var t0 = new Triangle(midVertex, edge.V0, nextPotentialCandidate);
-            var t1 = new Triangle(midVertex, nextPotentialCandidate, edge.V1);
+            _pslg.AddEdge(e0);
+            _pslg.AddEdge(e1);
+
+            //v0.AddEdge(e0);
+            //splitVertex.AddEdge(e0);
+            //splitVertex.AddEdge(e1);
+            //v1.AddEdge(e1);
+        }
+
+        private void RefineEdge(Edge edge, Vertex oppositeVertex, Vertex splitVertex, ref List<Triangle> triangles)
+        {
+            var v0 = edge.V0;
+            var v1 = edge.V1;
+            var e0 = new Edge(v0, splitVertex);
+            var e1 = new Edge(splitVertex, v1);
+
+            //v0.AddEdge(e0);
+            //splitVertex.AddEdge(e0);
+            //splitVertex.AddEdge(e1);
+            //v1.AddEdge(e1);
+
+            if (_pslg.Contains(edge))
+            {
+                _pslg.RemoveEdge(edge);
+                _pslg.Edges.Add(e0);
+                _pslg.Edges.Add(e1);
+            }
+
+            var t0 = new Triangle(splitVertex, edge.V0, oppositeVertex);
+            var t1 = new Triangle(splitVertex, oppositeVertex, edge.V1);
 
             triangles.Add(t0);
             triangles.Add(t1);
 
             //it must be a loop, because after we flip an edge, maybe we mess with the other edges.
             //is delaunay edge?
-            var flippingEdge0 = edge.V0.Find(nextPotentialCandidate);
+            var flippingEdge0 = edge.V0.Find(oppositeVertex);
             if (!Edge.IsDelaunay(flippingEdge0))
             {
                 var flippedEdge0 = flippingEdge0.FlipEdge();
@@ -428,7 +624,7 @@ namespace TriangleLib
                 triangles.Add(t1);
             }
 
-            var flippingEdge1 = edge.V1.Find(nextPotentialCandidate);
+            var flippingEdge1 = edge.V1.Find(oppositeVertex);
 
             if (!Edge.IsDelaunay(flippingEdge1))
             {
@@ -597,4 +793,5 @@ namespace TriangleLib
         }
     }
 }
+
 
