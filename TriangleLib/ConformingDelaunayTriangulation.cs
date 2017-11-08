@@ -152,7 +152,7 @@ namespace TriangleLib
 
             var orderedVertices = vertices.OrderBy(p => p.Position.X).ThenBy(p => p.Position.Y).ToList();
             var triangles = DivideAndTriangulate(orderedVertices, 0, vertices.Count() - 1);
-            return triangles;
+            return triangles.Where(t => !Triangle.IsDegenerate(t)).ToList();
         }
 
         private List<Triangle> DivideAndTriangulate(List<Vertex> vertices, int startIndex, int endIndex)
@@ -166,9 +166,9 @@ namespace TriangleLib
                     vertices[startIndex + 1],
                     vertices[startIndex + 2]);
 
-                _pslg.RemoveEdge(triangle.E0);
-                _pslg.RemoveEdge(triangle.E1);
-                _pslg.RemoveEdge(triangle.E2);
+                //_pslg.RemoveEdge(triangle.E0);
+                //_pslg.RemoveEdge(triangle.E1);
+                //_pslg.RemoveEdge(triangle.E2);
 
                 return new List<Triangle> { triangle };
             }
@@ -178,7 +178,7 @@ namespace TriangleLib
                         vertices[startIndex + 0],
                         vertices[startIndex + 1]);
 
-                _pslg.RemoveEdge(triangle.E0);
+                //_pslg.RemoveEdge(triangle.E0);
 
                 return new List<Triangle> { triangle };
             }
@@ -195,17 +195,30 @@ namespace TriangleLib
             var triangles = new List<Triangle>();
 
             var baseEdge = FindBottomMostEdge(leftTriangles, rightTriangles);
+            Vertex leftCandidate = null;
+            Vertex rightCandidate = null;
+            
+            //when triangles are collinear, we have to add the base edge as a degenerate triangle
+            leftCandidate = FindCandidateVertex(
+                    TrianglesDivideSide.Left,
+                    baseEdge,
+                    ref leftTriangles,
+                    rightTriangles);
 
-            _pslg.RemoveEdge(baseEdge);
+            rightCandidate = FindCandidateVertex(
+                    TrianglesDivideSide.Right,
+                    baseEdge,
+                    ref rightTriangles,
+                    leftTriangles);
 
-            while (true)
+            if (leftCandidate == null && rightCandidate == null)
             {
-                var leftCandidate = FindCandidateVertex(TrianglesDivideSide.Left, baseEdge, ref leftTriangles, rightTriangles);
-                var rightCandidate = FindCandidateVertex(TrianglesDivideSide.Right, baseEdge, ref rightTriangles, leftTriangles);
+                var t = new Triangle(baseEdge.V0, baseEdge.V1);
+                triangles.Add(t);
+            }
 
-                if (leftCandidate == null && rightCandidate == null)
-                    break;
-
+            while (leftCandidate != null || rightCandidate != null)
+            {
                 var leftRightEdge = CreateLeftRightEdge(
                     baseEdge,
                     leftCandidate,
@@ -215,9 +228,6 @@ namespace TriangleLib
                 {
                     var t = new Triangle(baseEdge.V0, baseEdge.V1, leftCandidate);
                     triangles.Add(t);
-                    _pslg.RemoveEdge(t.E0);
-                    _pslg.RemoveEdge(t.E1);
-                    _pslg.RemoveEdge(t.E2);
                     break;
                 }
 
@@ -236,15 +246,27 @@ namespace TriangleLib
                 var triangle = new Triangle(v0, v1, v2);
                 triangles.Add(triangle);
 
-                _pslg.RemoveEdge(triangle.E0);
-                _pslg.RemoveEdge(triangle.E1);
-                _pslg.RemoveEdge(triangle.E2);
+                //_pslg.RemoveEdge(triangle.E0);
+                //_pslg.RemoveEdge(triangle.E1);
+                //_pslg.RemoveEdge(triangle.E2);
 
                 baseEdge = leftRightEdge;
+
+                leftCandidate = FindCandidateVertex(
+                    TrianglesDivideSide.Left,
+                    baseEdge,
+                    ref leftTriangles,
+                    rightTriangles);
+
+                rightCandidate = FindCandidateVertex(
+                        TrianglesDivideSide.Right,
+                        baseEdge,
+                        ref rightTriangles,
+                        leftTriangles);
             }
 
-            triangles.AddRange(leftTriangles.Where(t => !Triangle.IsDegenerate(t)));
-            triangles.AddRange(rightTriangles.Where(t => !Triangle.IsDegenerate(t)));
+            triangles.AddRange(leftTriangles);
+            triangles.AddRange(rightTriangles);
 
             return triangles;
         }
@@ -381,7 +403,14 @@ namespace TriangleLib
                 var a = _pslg.Find(baseEdge.V0, leftCandidate);
                 var b = _pslg.Find(baseEdge.V1, rightCandidate);
 
-                if (a != null)
+                if (a != null && b != null)
+                {
+                    if (baseEdge.V0.Find(leftCandidate) == null)
+                        selectedSide = TrianglesDivideSide.Right;
+                    else if (baseEdge.V1.Find(rightCandidate) == null)
+                        selectedSide = TrianglesDivideSide.Left;
+                }
+                else if (a != null)
                     selectedSide = TrianglesDivideSide.Right;
                 else if (b != null)
                     selectedSide = TrianglesDivideSide.Left;
@@ -472,7 +501,8 @@ namespace TriangleLib
 
                     DeleteEdge(candidateEdge, ref triangles);
                     var splitVertex = candidateEdgeIntersection.Vertex;
-                    var oppositeVertex = candidateEdge.FindOppositeVertex(candidateEdge.Triangles[0]);
+                    
+                    var oppositeVertex = candidateEdge.Triangles.Count > 0 ? candidateEdge.FindOppositeVertex(candidateEdge.Triangles[0]) : null;
 
                     if (oppositeVertex != null)
                     {
@@ -501,8 +531,8 @@ namespace TriangleLib
 
                 var edgeIsFromPslg = _pslg.Find(candidateEdge) != null;
 
-                if (edgeIsFromPslg)
-                    return candidate;
+                //if (edgeIsFromPslg)
+                //    return candidate;
 
                 var nextPotentialCandidate = findResult.NextPotentialCandidate;
 
@@ -529,7 +559,7 @@ namespace TriangleLib
                         nextPotentialCandidate,
                         findParams.BaseVertex,
                         ref triangles);
-                else if (!edgeIsFromPslg)
+                else if (edgeIsFromPslg)
                 {
                     var midVertex = new Vertex(candidateEdge.MidPoint);
                     RefineEdge(candidateEdge, nextPotentialCandidate, midVertex, ref triangles);
@@ -610,34 +640,34 @@ namespace TriangleLib
 
             //it must be a loop, because after we flip an edge, maybe we mess with the other edges.
             //is delaunay edge?
-            var flippingEdge0 = edge.V0.Find(oppositeVertex);
-            if (!Edge.IsDelaunay(flippingEdge0))
-            {
-                var flippedEdge0 = flippingEdge0.FlipEdge();
+            //var flippingEdge0 = edge.V0.Find(oppositeVertex);
+            //if (!Edge.IsDelaunay(flippingEdge0))
+            //{
+            //    var flippedEdge0 = flippingEdge0.FlipEdge();
 
-                DeleteEdge(flippingEdge0, ref triangles);
+            //    DeleteEdge(flippingEdge0, ref triangles);
 
-                t0 = new Triangle(flippingEdge0.V0, flippedEdge0.V0, flippedEdge0.V1);
-                t1 = new Triangle(flippingEdge0.V1, flippedEdge0.V1, flippedEdge0.V0);
+            //    t0 = new Triangle(flippingEdge0.V0, flippedEdge0.V0, flippedEdge0.V1);
+            //    t1 = new Triangle(flippingEdge0.V1, flippedEdge0.V1, flippedEdge0.V0);
 
-                triangles.Add(t0);
-                triangles.Add(t1);
-            }
+            //    triangles.Add(t0);
+            //    triangles.Add(t1);
+            //}
 
-            var flippingEdge1 = edge.V1.Find(oppositeVertex);
+            //var flippingEdge1 = edge.V1.Find(oppositeVertex);
 
-            if (!Edge.IsDelaunay(flippingEdge1))
-            {
-                var flippedEdge1 = flippingEdge1.FlipEdge();
+            //if (!Edge.IsDelaunay(flippingEdge1))
+            //{
+            //    var flippedEdge1 = flippingEdge1.FlipEdge();
 
-                DeleteEdge(flippingEdge1, ref triangles);
+            //    DeleteEdge(flippingEdge1, ref triangles);
 
-                t0 = new Triangle(flippingEdge1.V0, flippedEdge1.V1, flippedEdge1.V0);
-                t1 = new Triangle(flippingEdge1.V1, flippedEdge1.V0, flippedEdge1.V1);
+            //    t0 = new Triangle(flippingEdge1.V0, flippedEdge1.V1, flippedEdge1.V0);
+            //    t1 = new Triangle(flippingEdge1.V1, flippedEdge1.V0, flippedEdge1.V1);
 
-                triangles.Add(t0);
-                triangles.Add(t1);
-            }
+            //    triangles.Add(t0);
+            //    triangles.Add(t1);
+            //}
         }
 
         private void ConnectCandidateToMergedTriangles(Vertex candidate, Vertex nextPotentialCandidate, Vertex baseVertex, ref List<Triangle> triangles)

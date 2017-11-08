@@ -29,6 +29,7 @@ namespace TriangleLib
         {
             return Find(edge.V0, edge.V1);
         }
+
         public Edge Find(Vertex v0, Vertex v1)
         {
             return _edges.FirstOrDefault(e => (e.V0 == v0 && e.V1 == v1) || (e.V0 == v1 && e.V1 == v0));
