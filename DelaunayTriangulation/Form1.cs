@@ -65,7 +65,7 @@ namespace Trianglex
 
             return points;
         }
-
+        
         protected override void OnShown(EventArgs e)
         {
             UpdatePoints();

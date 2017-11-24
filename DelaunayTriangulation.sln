@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trianglex", "DelaunayTriang
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TriangleLib", "TriangleLib\TriangleLib.csproj", "{F7A0876A-D2A2-4B62-A59E-375EED9C7E3A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComparingAngles", "ComparingAngles\ComparingAngles.csproj", "{8BC3D3A0-7F3D-440E-B694-19F59D263606}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{F7A0876A-D2A2-4B62-A59E-375EED9C7E3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F7A0876A-D2A2-4B62-A59E-375EED9C7E3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F7A0876A-D2A2-4B62-A59E-375EED9C7E3A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8BC3D3A0-7F3D-440E-B694-19F59D263606}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8BC3D3A0-7F3D-440E-B694-19F59D263606}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8BC3D3A0-7F3D-440E-B694-19F59D263606}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8BC3D3A0-7F3D-440E-B694-19F59D263606}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

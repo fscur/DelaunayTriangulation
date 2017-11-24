@@ -33,7 +33,7 @@ namespace TriangleLib
                 return false;
 
             Vec2 p = (Vec2)obj;
-            return Compare.AlmostEqual(X, p.X) && Compare.AlmostEqual(Y, p.Y);
+            return Compare.AlmostEqual(X, p.X, Compare.TOLERANCE) && Compare.AlmostEqual(Y, p.Y, Compare.TOLERANCE);
         }
 
         public override int GetHashCode()

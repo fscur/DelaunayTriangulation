@@ -59,11 +59,11 @@ namespace TriangleLib
             var cc = Vec2.Cross(a - c, b - c);
             var cd = Vec2.Cross(a - d, b - d);
 
-            var ccwa = Compare.LessOrEqual(ca, 0);
-            var ccwb = Compare.LessOrEqual(cb, 0);
+            var ccwa = Compare.LessOrEqual(ca, 0, Compare.TOLERANCE);
+            var ccwb = Compare.LessOrEqual(cb, 0, Compare.TOLERANCE);
 
-            var ccwc = Compare.LessOrEqual(cc, 0);
-            var ccwd = Compare.LessOrEqual(cd, 0);
+            var ccwc = Compare.LessOrEqual(cc, 0, Compare.TOLERANCE);
+            var ccwd = Compare.LessOrEqual(cd, 0, Compare.TOLERANCE);
 
             return !(ccwa == ccwb || ccwc == ccwd);
         }
@@ -135,15 +135,6 @@ namespace TriangleLib
         public static double GetRelativeAngleToVertex(Edge edge, Vertex vertex)
         {
             Vertex testVertex = vertex.Position == edge._v0.Position ? edge._v1 : edge._v0;
-
-
-            //if (vertex == edge._v0)
-            //    testVertex = edge._v1;
-            //else if (vertex == edge._v1)
-            //    testVertex = edge._v0;
-            //else
-            //    throw new InvalidOperationException("Input vertex should be one of the input edge.");
-
             var direction = testVertex.Position - vertex.Position;
             return (Math.Atan2(direction.Y, direction.X) + 2.0 * Math.PI) % (2.0 * Math.PI);
         }
@@ -182,7 +173,7 @@ namespace TriangleLib
 
             var det = x32 * y10 - x10 * y32;
 
-            if (Compare.AlmostEqual(det, 0.0))
+            if (Compare.AlmostEqual(det, 0.0, Compare.TOLERANCE))
                 return new EdgeIntersection() { Intersects = false };
 
             var x20 = x2 - x0;
@@ -196,13 +187,13 @@ namespace TriangleLib
 
             Vertex vertex = null;
 
-            if (Compare.AlmostEqual(s, 0.0))
+            if (Compare.AlmostEqual(s, 0.0, Compare.TOLERANCE))
                 vertex = e0.V0;
-            else if (Compare.AlmostEqual(s, 1.0))
+            else if (Compare.AlmostEqual(s, 1.0, Compare.TOLERANCE))
                 vertex = e0.V1;
-            else if (Compare.AlmostEqual(t, 0.0))
+            else if (Compare.AlmostEqual(t, 0.0, Compare.TOLERANCE))
                 vertex = e1.V0;
-            else if (Compare.AlmostEqual(t, 1.0))
+            else if (Compare.AlmostEqual(t, 1.0, Compare.TOLERANCE))
                 vertex = e1.V1;
             else
                 vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position));

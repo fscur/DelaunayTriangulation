@@ -26,13 +26,13 @@ namespace TriangleLib
         }
         public int Compare(Vec2 v0, Vec2 v1)
         {
-            if (TriangleLib.Compare.Less(v0.X, v1.X))
+            if (TriangleLib.Compare.Less(v0.X, v1.X, TriangleLib.Compare.TOLERANCE))
                 return -1;
-            else if (TriangleLib.Compare.Greater(v0.X, v1.X))
+            else if (TriangleLib.Compare.Greater(v0.X, v1.X, TriangleLib.Compare.TOLERANCE))
                 return 1;
-            else if (TriangleLib.Compare.Less(v0.Y, v1.Y))
+            else if (TriangleLib.Compare.Less(v0.Y, v1.Y, TriangleLib.Compare.TOLERANCE))
                 return -1;
-            else if (TriangleLib.Compare.Greater(v0.Y, v1.Y))
+            else if (TriangleLib.Compare.Greater(v0.Y, v1.Y, TriangleLib.Compare.TOLERANCE))
                 return 1;
 
             return 0;

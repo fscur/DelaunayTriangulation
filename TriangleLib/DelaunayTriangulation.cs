@@ -181,7 +181,8 @@ namespace TriangleLib
                     var angle = Vec2.Dot(Vec2.Normalize(v0), Vec2.Normalize(v1));
                     var sin = Vec2.Cross(v0, v1);
 
-                    if (Compare.LessOrEqual(sin, 0.0) && Compare.Less(angle, minAngle))
+                    if (Compare.LessOrEqual(sin, 0.0, Compare.TOLERANCE) && 
+                        Compare.Less(angle, minAngle, Compare.TOLERANCE))
                     { 
                         minAngle = angle;
                         minK = k;
@@ -214,7 +215,8 @@ namespace TriangleLib
                     var angle = Vec2.Dot(Vec2.Normalize(v0), Vec2.Normalize(v1));
                     var sin = Vec2.Cross(v0, v1);
 
-                    if (Compare.GreaterOrEqual(sin, 0.0) && Compare.Less(angle, minAngle))
+                    if (Compare.GreaterOrEqual(sin, 0.0, Compare.TOLERANCE) && 
+                        Compare.Less(angle, minAngle, Compare.TOLERANCE))
                     {
                         minAngle = angle;
                         minI = i;
@@ -331,8 +333,10 @@ namespace TriangleLib
                 var v1 = nextPotentialCandidate.Position - findParams.BaseVertex.Position;
 
                 //consider only edges to the same side as we are finding the vertex
-                if ((findParams.Side == TrianglesDivideSide.Right && Compare.Greater(Vec2.Cross(v0, v1), 0.0)) ||
-                    (findParams.Side == TrianglesDivideSide.Left && Compare.Less(Vec2.Cross(v0, v1), 0.0)))
+                if ((findParams.Side == TrianglesDivideSide.Right && 
+                    Compare.Greater(Vec2.Cross(v0, v1), 0.0, Compare.TOLERANCE)) ||
+                    (findParams.Side == TrianglesDivideSide.Left && 
+                    Compare.Less(Vec2.Cross(v0, v1), 0.0, Compare.TOLERANCE)))
                     return candidate;
 
                 //if found candidate, see if its circumcircle contains the next potential candidate
@@ -418,8 +422,8 @@ namespace TriangleLib
                 Vec2 v1 = currentPotentialCandidate.Position - baseVertex.Position;
                 var currentAngle = -Vec2.Dot(Vec2.Normalize(v0), Vec2.Normalize(v1));
                 var cross = Vec2.Cross(v0, v1) * angleSign;
-                var lessThan180 = Compare.Greater(cross, 0);
-                var lessThanMinAngle = Compare.Less(currentAngle, minCandidateAngle);
+                var lessThan180 = Compare.Greater(cross, 0, Compare.TOLERANCE);
+                var lessThanMinAngle = Compare.Less(currentAngle, minCandidateAngle, Compare.TOLERANCE);
                 // if angle between base edge and candidate edge is the smallest angle and is less than 180 degrees
                 if (lessThan180 && lessThanMinAngle)
                 {
