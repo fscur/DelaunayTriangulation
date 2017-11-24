@@ -42,8 +42,8 @@ namespace TriangleLib
             {
                 int hash = 17;
                 // Suitable nullity checks etc, of course :)
-                hash = hash * 23 + X.GetHashCode();
-                hash = hash * 23 + Y.GetHashCode();
+                hash = hash * 23 + (System.Math.Round(X)).GetHashCode();
+                hash = hash * 23 + (System.Math.Round(Y)).GetHashCode();
                 return hash;
             }
         }
@@ -120,6 +120,20 @@ namespace TriangleLib
         public static double Cross(Vec2 a, Vec2 b)
         {
             return a.X * b.Y - a.Y * b.X;
+        }
+
+        public static Vec2 Perp(Vec2 a)
+        {
+            return new Vec2(-a.Y, a.X);
+        }
+
+        public static Vec2 Round(Vec2 v, int digits)
+        {
+            return new Vec2(System.Math.Round(v.X, digits), System.Math.Round(v.Y, digits));
+        }
+        public static Vec2 Round(Vec2 v)
+        {
+            return Vec2.Round(v, 8);
         }
     }
 }

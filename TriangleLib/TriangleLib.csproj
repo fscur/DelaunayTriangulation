@@ -44,6 +44,7 @@
     <Compile Include="CandidateVertexResult.cs" />
     <Compile Include="Compare.cs" />
     <Compile Include="DelaunayTriangulation.cs" />
+    <Compile Include="DoubleComparer.cs" />
     <Compile Include="Edge.cs" />
     <Compile Include="EdgeAngleComparer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -52,6 +53,7 @@
     <Compile Include="Triangle.cs" />
     <Compile Include="TrianglesDivideSide.cs" />
     <Compile Include="Vec2.cs" />
+    <Compile Include="Vec2Comparer.cs" />
     <Compile Include="Vertex.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -56,7 +56,7 @@ namespace TriangleLib
 
         public override string ToString()
         {
-            return Position.ToString();
+            return string.Format("{0}, {1}", Position.X, Position.Y);
         }
 
         public void AddEdge(Edge edge)

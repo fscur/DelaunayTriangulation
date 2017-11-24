@@ -8,17 +8,14 @@ namespace TriangleLib
 {
     internal static class Compare
     {
-        static readonly double EPSILON = 0.5E-9;
-        static double RelativeError(double a, double b)
+        public static bool AlmostEqual(double a, double b, double tolerance)
         {
-            if (Compare.Equals(b, 0.0))
-                return Math.Abs(a);
-
-            return Math.Abs((a - b) / b);
+            return a == b || Math.Abs(a - b) < tolerance;
         }
+
         public static bool AlmostEqual(double a, double b)
         {
-            return a == b || RelativeError(a, b) < EPSILON;
+            return a == b || Math.Abs(a - b) < 0.5E-9;
         }
 
         public static bool GreaterOrEqual(double a, double b)

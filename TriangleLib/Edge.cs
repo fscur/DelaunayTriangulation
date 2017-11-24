@@ -84,7 +84,7 @@ namespace TriangleLib
                 t = Triangles.FirstOrDefault(t0 => t0 != triangle && t0.E0 != null && t0.E1 != null && t0.E2 != null);
 
             if (t == null)
-                return V0;
+                return null;
 
             if ((t.V0 == V0 && t.V1 == V1) || (t.V0 == V1 && t.V1 == V0))
                 return t.V2;
@@ -194,6 +194,19 @@ namespace TriangleLib
             var a = e0.V0.Position + t * (e0.V1.Position - e0.V0.Position);
             var b = e1.V0.Position + s * (e1.V1.Position - e1.V0.Position);
 
+            Vertex vertex = null;
+
+            if (Compare.AlmostEqual(s, 0.0))
+                vertex = e0.V0;
+            else if (Compare.AlmostEqual(s, 1.0))
+                vertex = e0.V1;
+            else if (Compare.AlmostEqual(t, 0.0))
+                vertex = e1.V0;
+            else if (Compare.AlmostEqual(t, 1.0))
+                vertex = e1.V1;
+            else
+                vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position));
+
             return new EdgeIntersection()
             {
                 Intersects = true,
@@ -201,7 +214,7 @@ namespace TriangleLib
                 E1 = e1,
                 S = s,
                 T = t,
-                Vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position))
+                Vertex = vertex
             };
         }
     }

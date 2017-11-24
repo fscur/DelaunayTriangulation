@@ -16,13 +16,31 @@ namespace TriangleLib
         public Edge E0;
         public Edge E1;
         public Edge E2;
-        public Triangle T0;
-        public Triangle T1;
-        public Triangle T2;
 
         public Triangle()
         {
 
+        }
+
+        public Triangle(Edge e0, Edge e1, Edge e2)
+        {
+            E0 = e0;
+            E1 = e1;
+            E2 = e2;
+            
+            var a = e0.V0 == e1.V0 || e0.V0 == e1.V1 ? e0.V0 : e0.V1;
+            var b = e1.V0 == e2.V0 || e1.V0 == e2.V1 ? e1.V0 : e1.V1;
+            var c = e2.V0 == e0.V0 || e2.V0 == e0.V1 ? e2.V0 : e2.V1;
+
+            var isCounterClockwise = Vec2.Cross(b.Position - a.Position, c.Position - a.Position) > 0;
+
+            V0 = a;
+            V1 = isCounterClockwise ? b : c;
+            V2 = isCounterClockwise ? c : b;
+
+            E0.Triangles.Add(this);
+            E1.Triangles.Add(this);
+            E2.Triangles.Add(this);
         }
 
         public Triangle(Vertex a, Vertex b, Vertex c)
@@ -96,7 +114,7 @@ namespace TriangleLib
                 return true;
 
             var cross = Vec2.Cross(t.V1.Position - t.V0.Position, t.V2.Position - t.V0.Position);
-            return Compare.AlmostEqual(cross, 0.0);
+            return Compare.AlmostEqual(cross, 0.0, 0.5e-2);
         }
 
         public static bool Contains(Triangle t, Vec2 point)
@@ -141,7 +159,9 @@ namespace TriangleLib
                 (Vec2.SquaredLength(b) - dnorm) * (cdx * ady - cdy * adx) +
                 (Vec2.SquaredLength(c) - dnorm) * (adx * bdy - ady * bdx));
 
-            return Compare.Greater(det, 0.0);
+            var containsPoint = Compare.Greater(det, 0.0);
+
+            return containsPoint;
         }
         
         public override string ToString()
@@ -156,6 +176,25 @@ namespace TriangleLib
         public bool Contains(Edge edge)
         {
             return edge == E0 || edge == E1 || edge == E2;
+        }
+
+        public void RemoveVertex(Vertex vertex)
+        {
+            if (vertex == V0)
+                V0 = null;
+
+            if (vertex == V1)
+                V1 = null;
+
+            if (vertex == V2)
+                V2 = null;
+
+            if (E0 != null && (E0.V0 == vertex || E0.V1 == vertex))
+                E0 = null;
+            if (E1 != null && (E1.V0 == vertex || E1.V1 == vertex))
+                E1 = null;
+            if (E2 != null && (E2.V0 == vertex || E2.V1 == vertex))
+                E2 = null;
         }
     }
 }
