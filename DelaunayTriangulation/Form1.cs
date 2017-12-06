@@ -12,33 +12,79 @@ using TriangleLib;
 
 namespace Trianglex
 {
+    enum EditMode
+    {
+        Select,
+        Add,
+        Move
+    }
+
+    enum AddMode
+    {
+        None,
+        Point,
+        ConstrainedEdge
+    }
+
+    enum ViewMode
+    {
+        None,
+        Zooming,
+        Panning
+    }
+
+    enum TriangulationMode
+    {
+        Delaunay,
+        ConformingDelaunay
+    }
+
+    struct DrawOptions
+    {
+        public bool DrawPSLG;
+        public bool DrawFlippableEdges;
+    }
+
     public partial class Form1 : Form
     {
         static readonly float POINT_SIZE = 10f;
         static readonly float HALF_POINT_SIZE = POINT_SIZE * 0.5f;
+        static readonly float TOL = 10.0f;
 
         Random _rand;
         Timer _timer;
-        List<Vec2> _points;
-        List<Vec2> _selectedPoints = new List<Vec2>();
-        List<Triangle> _triangles;
+
+        List<Vec2> _points = new List<Vec2>();
         PSLG _pslg = new PSLG();
-        int _totalPoints = 1;
-        bool _translating = false;
+
+        ConformingDelaunayTriangulation _conformingTriangulation;
+        DelaunayTriangulation _delaunayTriangulation;
+
         float _zoom = 1.0f;
         float _zoomInverse = 1.0f;
         Vec2 _origin = new Vec2();
         Point _lastMousePosition;
 
-        bool _selectPoints = true;
-        bool _addPoints = false;
-        bool _drawPSLG = false;
+        int _movingPointIndex = 1;
+        List<int> _selectedIndices = new List<int>();
+        Vec2 _v0;
+        Edge _tempEdge;
+
+        DrawOptions _drawOptions = new DrawOptions();
+        EditMode _editMode = EditMode.Select;
+        AddMode _addMode = AddMode.None;
+        ViewMode _viewMode = ViewMode.None;
+        TriangulationMode _triangulationMode = TriangulationMode.Delaunay;
 
         public Form1()
         {
             InitializeComponent();
 
             this.DoubleBuffered = true;
+            tsbMode.Tag = EditMode.Select;
+            tsbAddMode.Tag = AddMode.Point;
+            _addMode = AddMode.Point;
+            _editMode = EditMode.Select;
 
             _timer = new Timer();
             _timer.Tick += (sender, e) =>
@@ -48,8 +94,6 @@ namespace Trianglex
             };
 
             _rand = new Random((int)DateTime.Now.Ticks);
-
-            mutuallyExclusiveButtons = new[] { toolStripButton1, toolStripButton2 };
         }
 
         private List<Vec2> FillPoints(int pointCount, RectangleF bounds)
@@ -65,56 +109,113 @@ namespace Trianglex
 
             return points;
         }
-        
+
         protected override void OnShown(EventArgs e)
         {
             UpdatePoints();
-            toolStripButton1.Checked = _selectPoints;
-            toolStripButton2.Checked = _addPoints;
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
-            if (e.Button == MouseButtons.Middle)
+            switch (e.Button)
             {
-                _translating = true;
+                case MouseButtons.Left:
+                    HandleLeftMouseDown(e);
+                    break;
+                case MouseButtons.Right:
+                    break;
+                case MouseButtons.Middle:
+                    _viewMode = ViewMode.Panning;
+                    _lastMousePosition = e.Location;
+                    break;
+                default:
+                    break;
+            }
+        }
 
-                _lastMousePosition = e.Location;
+        private void HandleLeftMouseDown(MouseEventArgs e)
+        {
+            var p = SelectPoint(e.Location);
+
+            switch (_editMode)
+            {
+                case EditMode.Select:
+                    {
+                        if (p != null)
+                        {
+                            if (Form.ModifierKeys == Keys.Control)
+                                _selectedIndices.Add(_points.IndexOf(p));
+                            else
+                            {
+                                _selectedIndices.Clear();
+                                _selectedIndices.Add(_points.IndexOf(p));
+                            }
+                        }
+
+                        break;
+                    }
+                case EditMode.Move:
+                    if (p != null)
+                        _movingPointIndex = _points.IndexOf(p);
+
+                    break;
+                case EditMode.Add:
+                    {
+                        if (_pslg == null)
+                            _pslg = new PSLG();
+
+                        if (_v0 == null)
+                            _v0 = p ?? PointToWorld(e.Location);
+
+                        break;
+                    }
+                default:
+                    break;
             }
         }
 
         protected override void OnMouseMove(MouseEventArgs e)
         {
-            if (_translating)
+            if (_viewMode == ViewMode.Panning)
             {
                 _origin += new Vec2(
                     _lastMousePosition.X - e.Location.X,
                     -(_lastMousePosition.Y - e.Location.Y));
             }
-            else if (_selectPoints && e.Button == MouseButtons.Left)
+            else if (_editMode == EditMode.Move)
             {
-                var halfWidth = ClientRectangle.Width * 0.5f;
-                var halfHeight = ClientRectangle.Height * 0.5f;
-                var p = new Vec2(e.Location.X - halfWidth, -(e.Location.Y - halfHeight));
+                if (_movingPointIndex == -1)
+                    return;
 
-                p += _origin;
-                p *= 1.0 / _zoom;
-
-                Vec2 pToRemove = null;
-
-                foreach (var point in _points)
+                
+                if (_triangulationMode == TriangulationMode.Delaunay)
                 {
-                    if (Math.Abs(p.X - point.X) < 5.0 && Math.Abs(p.Y - point.Y) < 5.0)
-                    {
-                        pToRemove = point;
-                        _points.Add(new Vec2(Math.Round(p.X), Math.Round(p.Y)));
-                        break;
-                    }
-                }
+                    var p0 = PointToWorld(e.Location);
+                    var p1 = _points[_movingPointIndex];
 
-                _points.Remove(pToRemove);
-                if (_points.Count > 2)
-                    _triangles = DelaunayTriangulation.Triangulate(_points);
+                    var dist = Math.Abs(Vec2.Length(p0 - p1));
+
+                    _points[_movingPointIndex] = new Vec2(Math.Round(p0.X), Math.Round(p0.Y));
+
+                    if (_points.Count > 2)
+                        _delaunayTriangulation = DelaunayTriangulation.Triangulate(_points);
+                }
+                else if (_triangulationMode == TriangulationMode.ConformingDelaunay)
+                {
+                    _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _points, TOL);
+                    _pslg = _conformingTriangulation.Pslg;
+                    _points = _pslg.Vertices.Select(p => p.Position).ToList();
+                }
+            }
+            else if (_addMode == AddMode.ConstrainedEdge)
+            {
+                if (_v0 != null)
+                {
+                    var p = SelectPoint(e.Location) ?? PointToWorld(e.Location);
+
+                    if (_v0 != p)
+                        _tempEdge = new Edge(new Vertex(_v0), new Vertex(p));
+                }
             }
 
             _lastMousePosition = e.Location;
@@ -122,40 +223,39 @@ namespace Trianglex
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
-            if (_translating)
+            if (e.Button == MouseButtons.Left)
             {
-                _translating = false;
-            }
-            else if (_addPoints)
-            {
-                var halfWidth = ClientRectangle.Width * 0.5f;
-                var halfHeight = ClientRectangle.Height * 0.5f;
-                var p = new Vec2(e.Location.X - halfWidth, -(e.Location.Y - halfHeight));
-
-                p += _origin;
-                p *= 1.0 / _zoom;
-
-                _points.Add(new Vec2(Math.Round(p.X), Math.Round(p.Y)));
-                if (_points.Count > 2)
-                    _triangles = DelaunayTriangulation.Triangulate(_points);
-            }
-            else if (_selectPoints)
-            {
-                var halfWidth = ClientRectangle.Width * 0.5f;
-                var halfHeight = ClientRectangle.Height * 0.5f;
-                var p = new Vec2(e.Location.X - halfWidth, -(e.Location.Y - halfHeight));
-
-                p += _origin;
-                p *= 1.0 / _zoom;
-                if (_selectedPoints.Count == 3)
-                    _selectedPoints.Clear();
-
-                foreach (var point in _points)
+                if (_addMode == AddMode.Point)
                 {
-                    if (Vec2.Length(point - p) < 5.0)
-                        _selectedPoints.Add(point);
+                    var p = PointToWorld(e.Location);
+
+                    _points.Add(new Vec2(Math.Round(p.X), Math.Round(p.Y)));
+                }
+                else if (_addMode == AddMode.ConstrainedEdge)
+                {
+                    if (_tempEdge != null)
+                        _pslg.AddEdge(_tempEdge);
+                }
+
+                if (_triangulationMode == TriangulationMode.Delaunay)
+                {
+                    if (_points.Count > 2)
+                        _delaunayTriangulation = DelaunayTriangulation.Triangulate(_points);
+                }
+                else if (_triangulationMode == TriangulationMode.ConformingDelaunay)
+                {
+                    _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _points, TOL);
+                    _pslg = _conformingTriangulation.Pslg;
+                    _points = _pslg.Vertices.Select(p => p.Position).ToList();
                 }
             }
+
+            _viewMode = ViewMode.None;
+
+            _movingPointIndex = -1;
+
+            _v0 = null;
+            _tempEdge = null;
         }
 
         protected override void OnMouseWheel(MouseEventArgs e)
@@ -181,16 +281,45 @@ namespace Trianglex
             }
         }
 
+        private Vec2 PointToWorld(Point screenCoords)
+        {
+            var halfWidth = ClientRectangle.Width * 0.5f;
+            var halfHeight = ClientRectangle.Height * 0.5f;
+            var p = new Vec2(screenCoords.X - halfWidth, -(screenCoords.Y - halfHeight));
+
+            p += _origin;
+            p *= _zoomInverse;
+            return p;
+        }
+
+        private Vec2 SelectPoint(Point screenCoords)
+        {
+            var position = PointToWorld(screenCoords);
+
+            var minDist = 5 * _zoomInverse;
+            for (int i = 0; i < _points.Count; i++)
+            {
+                var point = _points[i];
+
+                if (Math.Abs(position.X - point.X) < minDist && Math.Abs(position.Y - point.Y) < minDist)
+                    return _points[i];
+            }
+
+            return null;
+        }
+
         private void UpdatePoints()
         {
             _timer.Stop();
 
-            var halfWidth = ClientRectangle.Width * 0.5f * _zoom;
-            var halfHeight = ClientRectangle.Height * 0.5f * _zoom;
+            // rand
 
-            var bounds = new RectangleF(
-                new PointF(-halfWidth, -halfHeight),
-                new SizeF(ClientRectangle.Width, ClientRectangle.Height));
+            //var halfWidth = ClientRectangle.Width * 0.5f * _zoom;
+            //var halfHeight = ClientRectangle.Height * 0.5f * _zoom;
+
+            //var bounds = new RectangleF(
+            //    new PointF(-halfWidth, -halfHeight),
+            //    new SizeF(ClientRectangle.Width, ClientRectangle.Height));
 
             //for (int i = 0; i < 1; i++)
             //{
@@ -198,132 +327,35 @@ namespace Trianglex
             //    _triangles = DelaunayTriangulation.Triangulate(_points);
             //}
 
-            _points = new List<Vec2>();
-            _pslg = new PSLG();
-
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(839.5, 541.6)), new Vertex(new Vec2(839.5, 542.8))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(839.5, 542.8)), new Vertex(new Vec2(857.5, 925.6))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(837.4, 539.7)), new Vertex(new Vec2(839.5, 541.6))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(645.6, 354.4)), new Vertex(new Vec2(837.4, 539.7))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(800.8, 784.5)), new Vertex(new Vec2(559.7, 440.3))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(802.7, 787.3)), new Vertex(new Vec2(800.8, 784.5))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(799.7, 786.7)), new Vertex(new Vec2(802.7, 787.3))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(301.2, 698.8)), new Vertex(new Vec2(799.7, 786.7))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(484.5, 925.6)), new Vertex(new Vec2(208.1, 791.9))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(485.7, 925.6)), new Vertex(new Vec2(484.5, 925.6))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(857.5, 925.6)), new Vertex(new Vec2(485.7, 925.6))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0, 1000)), new Vertex(new Vec2(1000, 0))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 0)), new Vertex(new Vec2(1000, 1000))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 1000)), new Vertex(new Vec2(0, 1000))));
-
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(769.237587695873, 230.762412304127)), new Vertex(new Vec2(1000, 453.518323197259))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 733.396673982009)), new Vertex(new Vec2(697.95931504673, 302.04068495327))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(999.715538875667, 736.74697949247)), new Vertex(new Vec2(1000, 736.797138018277))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(373.646639705853, 626.353360294148)), new Vertex(new Vec2(999.715538875667, 736.74697949247))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(684.545043945313, 875.634155273438)), new Vertex(new Vec2(307.049604096066, 692.950395903934))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(685.718148368993, 875.634155273438)), new Vertex(new Vec2(684.545043945313, 875.634155273438))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 875.634155273438)), new Vertex(new Vec2(685.718148368993, 875.634155273438))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0, 1000)), new Vertex(new Vec2(1000, 6.12303176911189E-14))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 6.12303176911189E-14)), new Vertex(new Vec2(1000, 1000))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 1000)), new Vertex(new Vec2(0, 1000))));
-
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(743.8, 256.2)), new Vertex(new Vec2(1000, 503.5))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 783.4)), new Vertex(new Vec2(677.4, 322.6))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(331.1, 668.9)), new Vertex(new Vec2(1000, 786.8))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(544.5, 857.9)), new Vertex(new Vec2(273.4, 726.6))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(684.5, 925.6)), new Vertex(new Vec2(544.5, 857.9))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(974.9, 925.6)), new Vertex(new Vec2(684.5, 925.6))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 925.6)), new Vertex(new Vec2(974.9, 925.6))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0, 1000)), new Vertex(new Vec2(1000, 0))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 0)), new Vertex(new Vec2(1000, 1000))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 1000)), new Vertex(new Vec2(0, 1000))));
-
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0,0)), new Vertex(new Vec2(200,0))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(200, 0)), new Vertex(new Vec2(200, 200))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(200, 200)), new Vertex(new Vec2(0, 200))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0, 200)), new Vertex(new Vec2(0, 0))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0, 200)), new Vertex(new Vec2(200, 0))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0, 200)), new Vertex(new Vec2(100, 0))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0, 200)), new Vertex(new Vec2(200, 100))));
-
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(28.2, 386.4)), new Vertex(new Vec2(13.6, 386.4   ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(13.6, -46.4)), new Vertex(new Vec2(93.9, -46.4   ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(93.9, -46.4)), new Vertex(new Vec2(102.5, -46.4  ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(117.2, -131.8)), new Vertex(new Vec2(13.6, 471.7 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(13.6, 471.7)), new Vertex(new Vec2(13.6, -131.8  ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(13.6, -131.8)), new Vertex(new Vec2(117.2, -131.8))));
 
 
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(2224.27956003284, -480.767924713218)), new Vertex(new Vec2(2225.419921875, -467.733734130859   ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(2042.38989257813, -2559.74365234375)), new Vertex(new Vec2(2224.27956003284, -480.767924713218 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(2038.55298676632, -2555.17092899296)), new Vertex(new Vec2(2042.38989257813, -2559.74365234375 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1426.55993652344, -1825.81372070313)), new Vertex(new Vec2(2038.55298676632, -2555.17092899296 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1420.11464718629, -1839.63575360959)), new Vertex(new Vec2(1426.55993652344, -1825.81372070313 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1200.97921789528, -2309.57541902938)), new Vertex(new Vec2(1420.11464718629, -1839.63575360959 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1328.69995117188, -548.743713378906)), new Vertex(new Vec2(973.898766295768, -1872.88224287648 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1287.73999023438, -520.063720703125)), new Vertex(new Vec2(1287.99518975922, -520.242410338954 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1287.99518975922, -520.242410338954)), new Vertex(new Vec2(1328.69995117188, -548.743713378906 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(2219.57774166932, -468.059774180774)), new Vertex(new Vec2(1287.73999023438, -520.063720703125 ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(2225.419921875, -467.733734130859)), new Vertex(new Vec2(2219.57774166932, -468.059774180774   ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(0, 0)), new Vertex(new Vec2(2600, -5000                                                        ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(2600, -5000)), new Vertex(new Vec2(2600, 1.59197958635171E-13))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(2600, 1.59197958635171E-13)), new Vertex(new Vec2(0, 0))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(2488.81787109375, 1113.5077583591)), new Vertex(new Vec2(2488.81787109375, 1115.24652929936))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(2363.49889793366, 1115.24652929936)), new Vertex(new Vec2(2363.76858208171, 1111.54013426594))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1969.04443359375, 1105.32923334156)), new Vertex(new Vec2(1969.04443359375, 1115.24652929936))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1869.42443847656, 1115.24652929936)), new Vertex(new Vec2(1869.42443847656, 1103.76173380517))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1635.11669921875, 1100.07495112435)), new Vertex(new Vec2(1635.11669921875, 1115.24652929936))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1535.49658203125, 1115.24652929936)), new Vertex(new Vec2(1535.49658203125, 1098.5074496672))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1344.23388671875, 1095.49797164144)), new Vertex(new Vec2(1344.23388671875, 1115.24652929936))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1245.75390625, 1115.24652929936)), new Vertex(new Vec2(1245.75390625, 1093.94840999422))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1117.72436523438, 1094.59108010523)), new Vertex(new Vec2(1117.72436523438, 1115.24652929936))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1117.72436523438, 1091.93389226662)), new Vertex(new Vec2(1117.72436523438, 1094.59108010523))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(983.264404296875, 1115.24652929936)), new Vertex(new Vec2(983.264404296875, 1089.81819324269))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(837.556284440744, 1087.52550681909)), new Vertex(new Vec2(835.539721799644, 1115.24652929936))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(344.760589346842, 1103.86763674669)), new Vertex(new Vec2(341.220656622349, 1079.71577077577))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(346.428390673836, 1115.24652929936)), new Vertex(new Vec2(344.760589346842, 1103.86763674669))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(-1149.67114257813, 1056.25690389552)), new Vertex(new Vec2(2599.32275390625, 1115.24652929936))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(2599.32275390625, 1115.24652929936)), new Vertex(new Vec2(-1149.67114257813, 1115.24652929936))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(-1149.67114257813, 1115.24652929936)), new Vertex(new Vec2(-1149.67114257813, 1056.25690389552))));
 
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-1818.09279008686, 390.94873046875)), new Vertex(new Vec2(-2185.52001953125, 390.94873046875         ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-2185.52001953125, 0)), new Vertex(new Vec2(1.22460635382238E-13, 2325.42993164063                   ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1.22460635382238E-13, 2325.42993164063)), new Vertex(new Vec2(-2185.52001953125, 2325.42993164063    ))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-2185.52001953125, 2325.42993164063)), new Vertex(new Vec2(-2185.52001953125, 0))));
 
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-221.750011261987, 152.903381347656)), new Vertex(new Vec2(-220.75439453125, 152.903381347656))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-767.5146484375, 152.903381347656)), new Vertex(new Vec2(-221.750011261987, 152.903381347656))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-767.5146484375, 153.306960726443)), new Vertex(new Vec2(-767.5146484375, 152.903381347656))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-767.5146484375, 153.653461995886)), new Vertex(new Vec2(-767.5146484375, 153.306960726443))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-220.75439453125, 152.903381347656)), new Vertex(new Vec2(-220.75439453125, 153.306960726443))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-220.75439453125, 153.306960726443)), new Vertex(new Vec2(-220.75439453125, 154.795664301721))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-220.75439453125, 154.795664301721)), new Vertex(new Vec2(-220.75439453125, 156.639308361081))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-220.75439453125, 156.639308361081)), new Vertex(new Vec2(-220.75439453125, 220.75439453125))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-1000, 296.60684204101)), new Vertex(new Vec2(-767.514648439987, 296.60684204101))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-849.75683593965, 849.75683593965)), new Vertex(new Vec2(-1000, 849.75683593901))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-2.44921270764475E-13, 5.99864284026878E-29)), new Vertex(new Vec2(-1000, 1000))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-1000, 1000)), new Vertex(new Vec2(-1000, 0))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(-1000, 0)), new Vertex(new Vec2(-2.44921270764475E-13, 5.99864284026878E-29))));
+            //foreach (var edge in _pslg.Edges)
+            //{
+            //    if (!_points.Contains(Vec2.Round(edge.V0.Position)))
+            //        _points.Add(Vec2.Round(edge.V0.Position));
 
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(793.494323173917, 1000)), new Vertex(new Vec2(578.44873046875, 1000))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 250)), new Vertex(new Vec2(1000, 250))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1000, 250)), new Vertex(new Vec2(1000, 456.47705859375))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(1078.44873046875, 250)), new Vertex(new Vec2(578.44873046875, 1566))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(578.44873046875, 1566)), new Vertex(new Vec2(578.44873046875, 250))));
-            //_pslg.Edges.Add(new Edge(new Vertex(new Vec2(578.44873046875, 250)), new Vertex(new Vec2(1078.44873046875, 250))));
-
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-767.615158760077, 287.291017207003)), new Vertex(new Vec2(-737.083621152535, 405.125605552783))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-737.083621152535, 405.125605552783)), new Vertex(new Vec2(-701.307829207229, 543.200070416224))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-667.35300501428, 674.246613215096)), new Vertex(new Vec2(-592.259958401498, 964.063509334772 ))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-743.117666519443, 951.223988355546)), new Vertex(new Vec2(-861.546513658719, 941.144492339549))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-592.259958398943, 964.063509339778)), new Vertex(new Vec2(-661.956159545685, 958.131655752091))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-661.956159545685, 958.131655752091)), new Vertex(new Vec2(-743.117666519443, 951.223988355546))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-905.343768411527, 937.416900339186)), new Vertex(new Vec2(-982.887293405831, 930.817157385429))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-982.887293405831, 930.817157385429)), new Vertex(new Vec2(-1000, 929.360691938793            ))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-861.546513655736, 941.144492339803)), new Vertex(new Vec2(-905.343768411527, 937.416900339186))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-811.912487307497, 283.520863212556)), new Vertex(new Vec2(-767.615158754517, 287.291017212538))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-843.401244107527, 280.840849173737)), new Vertex(new Vec2(-811.912487307497, 283.520863212556))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-1000, 267.512699481502)), new Vertex(new Vec2(-843.401244107527, 280.840849173737             ))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-660.037935722971, 663.401576456208)), new Vertex(new Vec2(-660.041865036578, 663.407401903486))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-660.041865036578, 663.407401903486)), new Vertex(new Vec2(-667.353005014723, 674.246613212528))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-617.218444822462, 599.919067380208)), new Vertex(new Vec2(-658.035902378782, 660.433439813947))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-658.035902378782, 660.433439813947)), new Vertex(new Vec2(-660.037935722971, 663.401576456208))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-701.307829208746, 543.200070417168)), new Vertex(new Vec2(-617.218444825669, 599.919067381835))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-1000, 0)), new Vertex(new Vec2(6.12303176911189E-14, 1000                                    ))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(6.12303176911189E-14, 1000)), new Vertex(new Vec2(-1000, 1000                                 ))));
-            _pslg.Edges.Add(new Edge(new Vertex(new Vec2(-1000, 1000)), new Vertex(new Vec2(-1000, 0))));
-
-            foreach (var edge in _pslg.Edges)
-            {
-                if (!_points.Contains(edge.V0.Position))
-                    _points.Add(Vec2.Round(edge.V0.Position));
-
-                if (!_points.Contains(edge.V1.Position))
-                    _points.Add(Vec2.Round(edge.V1.Position));
-            }
+            //    if (!_points.Contains(Vec2.Round(edge.V1.Position)))
+            //        _points.Add(Vec2.Round(edge.V1.Position));
+            //}
 
             _timer.Start();
         }
@@ -339,33 +371,59 @@ namespace Trianglex
 
             InitDrawing(g, halfWidth, halfHeight);
             DrawAxis(g, halfWidth, halfHeight);
-            DrawPoints(g, _points.Where(p => !_selectedPoints.Contains(p)).ToList(), Color.Blue);
 
-            DrawPoints(g, _selectedPoints, Color.Red);
+            DrawTriangulation(g);
 
-            if (_selectedPoints.Count > 1)
+            DrawPoints(g, _points, Color.Blue);
+            var selected = _selectedIndices.Select(p => _points.ElementAt(p)).ToList();
+
+            if (selected.Count > 0)
+                DrawPoints(g, selected, Color.Red);
+
+            if (_drawOptions.DrawPSLG)
+                DrawPSLG(g);
+
+            if (_addMode == AddMode.ConstrainedEdge && _tempEdge != null)
             {
-
-                Triangle t = null;
-                if (_selectedPoints.Count == 2)
-                    t = new Triangle(new Vertex(_selectedPoints[0]), new Vertex(_selectedPoints[1]));
-                else if (_selectedPoints.Count == 3)
-                    t = new Triangle(new Vertex(_selectedPoints[0]), new Vertex(_selectedPoints[1]), new Vertex(_selectedPoints[2]));
-
-                Draw(g, t, Color.Orange);
-                //DrawCircumcircle(g, t, Pens.Fuchsia);
-            }
-
-            if (_triangles != null)
-                DrawTriangles(g, _triangles);
-
-            if (_drawPSLG && _pslg != null)
-            {
-                foreach (var edge in _pslg.Edges)
+                using (var pen = new Pen(new SolidBrush(Color.Gray), -1.0f))
                 {
-                    Draw(g, edge, Color.Maroon, 2.0f * _zoomInverse);
+                    pen.DashStyle = DashStyle.DashDot;
+                    Draw(g, _tempEdge, pen);
                 }
             }
+        }
+
+        private void DrawPSLG(Graphics g)
+        {
+            if (_pslg != null)
+            {
+                foreach (var edge in _pslg.Edges)
+                    Draw(g, edge, Color.Maroon, 2.0f * _zoomInverse);
+            }
+        }
+
+        private void DrawTriangulation(Graphics g)
+        {
+            if (_conformingTriangulation != null)
+                DrawConformingTriangulation(g, _conformingTriangulation);
+            else if (_delaunayTriangulation != null)
+                DrawDelaunayTriangulation(g, _delaunayTriangulation);
+        }
+
+        private void DrawDelaunayTriangulation(Graphics g, DelaunayTriangulation triangulation)
+        {
+            var triangles = triangulation.Triangles;
+
+            if (triangles != null)
+                DrawTriangles(g, triangles);
+        }
+
+        private void DrawConformingTriangulation(Graphics g, ConformingDelaunayTriangulation triangulation)
+        {
+            var triangles = triangulation.Triangles;
+
+            if (triangles != null)
+                DrawTriangles(g, triangles);
         }
 
         private void InitDrawing(Graphics g, float halfWidth, float halfHeight)
@@ -385,10 +443,10 @@ namespace Trianglex
 
         private void DrawAxis(Graphics g, float halfWidth, float halfHeight)
         {
-            var w0 = (-halfWidth + (float)_origin.X) * (1.0f / _zoom);
-            var w1 = (halfWidth + (float)_origin.X) * (1.0f / _zoom);
-            var h0 = (-halfHeight + (float)_origin.Y) * (1.0f / _zoom);
-            var h1 = (halfHeight + (float)_origin.Y) * (1.0f / _zoom);
+            var w0 = (-halfWidth + (float)_origin.X) * (_zoomInverse);
+            var w1 = (halfWidth+ (float)_origin.X) * (_zoomInverse);
+            var h0 = (-halfHeight + (float)_origin.Y) * (_zoomInverse);
+            var h1 = (halfHeight + (float)_origin.Y) * (_zoomInverse);
 
             g.SmoothingMode = SmoothingMode.Default;
             using (var pen = new Pen(Brushes.Black, -1))
@@ -396,31 +454,64 @@ namespace Trianglex
                 g.DrawLine(pen, new PointF(w0, 0.0f), new PointF(w1, 0.0f));
                 g.DrawLine(pen, new PointF(0.0f, h0), new PointF(0.0f, h1));
             }
+
+            var gridSize = 10.0f;
+
+            using (var pen = new Pen(Brushes.Gray, -1))
+            {
+                pen.DashStyle = DashStyle.Dot;
+                var x = 0.0f;
+                do
+                {
+                    x += gridSize;
+                    g.DrawLine(pen, new PointF(x, h0), new PointF(x, h1));
+                } while (x < w1);
+
+                x = 0.0f;
+                do 
+                {
+                    x -= gridSize;
+                    g.DrawLine(pen, new PointF(x, h0), new PointF(x, h1));
+                } while (x > w0);
+
+                var y = 0.0f;
+                do
+                {
+                    y += gridSize;
+                    g.DrawLine(pen, new PointF(w0, y), new PointF(w1, y));
+                } while (y < h1);
+
+                y = 0.0f;
+                do
+                {
+                    y -= gridSize;
+                    g.DrawLine(pen, new PointF(w0, y), new PointF(w1, y));
+                } while (y > h0);
+            }
+
             g.SmoothingMode = SmoothingMode.HighQuality;
         }
 
         private void DrawPoints(Graphics g, List<Vec2> points, Color color)
         {
             foreach (var point in points)
+            {
                 using (var brush = new SolidBrush(color))
                     Draw(g, point, brush);
+
+                var rect = new RectangleF((float)point.X - TOL, (float)point.Y - TOL, 2.0f * TOL, 2.0f * TOL);
+
+                using (var pen = new Pen(color, -1))
+                    g.DrawEllipse(pen, rect);
+            }
         }
 
         private void DrawTriangles(Graphics g, List<Triangle> triangles)
         {
-            var halfWidth = ClientRectangle.Width * 0.5f;
-            var halfHeight = ClientRectangle.Height * 0.5f;
-            var p = new Vec2(_lastMousePosition.X - halfWidth, -(_lastMousePosition.Y - halfHeight));
-            p += _origin;
-            p *= 1.0 / _zoom;
+            var p = PointToWorld(_lastMousePosition);
 
             foreach (var triangle in triangles)
-            {
                 Draw(g, triangle, Color.Green);
-
-                //if (Triangle.Contains(triangle, p))
-                //    DrawCircumcircle(g, triangle, Pens.Fuchsia);
-            }
         }
 
         private void DrawCircumcircle(Graphics g, Triangle triangle, Pen pen)
@@ -490,6 +581,7 @@ namespace Trianglex
                             0, 0);
 
             g.MultiplyTransform(clientToWorld);
+
             using (var font = new Font(this.Font.FontFamily, 8.0f * _zoomInverse))
                 g.DrawString(string.Format("({0}, {1})", point.X, point.Y), font, Brushes.Black, new PointF(rect.X + 6 * _zoomInverse, -rect.Y - 10 * _zoomInverse));
 
@@ -499,90 +591,133 @@ namespace Trianglex
         private void Draw(Graphics g, Triangle triangle, Color color)
         {
             if (triangle.E0 != null)
-                Draw(g, triangle.E0, color);
+                Draw(g, triangle.E0, _drawOptions.DrawFlippableEdges && !triangle.E0.CanFlip() ? Color.Red : color);
 
             if (triangle.E1 != null)
-                Draw(g, triangle.E1, color);
+                Draw(g, triangle.E1, _drawOptions.DrawFlippableEdges && !triangle.E1.CanFlip() ? Color.Red : color);
 
             if (triangle.E2 != null)
-                Draw(g, triangle.E2, color);
+                Draw(g, triangle.E2, _drawOptions.DrawFlippableEdges && !triangle.E2.CanFlip() ? Color.Red : color);
+        }
+
+        private void Draw(Graphics g, Edge edge, Pen pen)
+        {
+            var v0 = edge.V0.Position.ToPointF();
+            var v1 = edge.V1.Position.ToPointF();
+            g.DrawLine(pen, v0.X, v0.Y, v1.X, v1.Y);
         }
 
         private void Draw(Graphics g, Edge edge, Color color, float width = -1.0f)
         {
-            var v0 = edge.V0.Position.ToPointF();
-            var v1 = edge.V1.Position.ToPointF();
-
-            using (var pen = new Pen(new SolidBrush(color), width))
-                g.DrawLine(pen, v0.X, v0.Y, v1.X, v1.Y);
+            var pen = new Pen(new SolidBrush(color), width);
+            Draw(g, edge, pen);
         }
 
-        private void toolStripButton1_Click(object sender, EventArgs e)
+        private void tsbMode_ButtonClick(object sender, EventArgs e)
         {
-            _timer.Stop();
-            _triangles = DelaunayTriangulation.Triangulate(_points);
-            _timer.Start();
-        }
-
-        private readonly IEnumerable<ToolStripButton> mutuallyExclusiveButtons;
-
-        private void ToolStripButton_Click(object sender, EventArgs e)
-        {
-            ToolStripButton button = sender as ToolStripButton;
-
-            if (toolStripButton1 == button)
+            if (tsbMode.Tag == null)
+                tsbMode.Tag = EditMode.Select;
+            
+            switch ((EditMode)tsbMode.Tag)
             {
-                _selectedPoints.Clear();
-                _selectPoints = true;
-                _addPoints = false;
-            }
-            else if (toolStripButton2 == button)
-            {
-                _selectPoints = false;
-                _addPoints = true;
-            }
-
-            if (button != null && button.Checked &&
-                mutuallyExclusiveButtons.Contains(button))
-            {
-                foreach (ToolStripButton item in mutuallyExclusiveButtons)
-                {
-                    if (item != button) item.Checked = !button.Checked;
-                }
+                case EditMode.Select:
+                    ChangeToSelectMode();
+                    break;
+                case EditMode.Move:
+                    ChangeToMoveMode();
+                    break;
+                default:
+                    break;
             }
         }
 
-        private void toolStripMenuItem1_Click(object sender, EventArgs e)
+        private void tsmSelect_Click(object sender, EventArgs e)
         {
-            _timer.Stop();
-            UpdatePoints();
-            _triangles = DelaunayTriangulation.Triangulate(_points);
-            _timer.Start();
+            ChangeToSelectMode();
         }
 
-        private void toolStripMenuItem2_Click(object sender, EventArgs e)
+        private void tsmMove_Click(object sender, EventArgs e)
         {
-            _timer.Stop();
-            UpdatePoints();
-            _triangles = ConformingDelaunayTriangulation.Triangulate(_pslg);
-            _timer.Start();
+            ChangeToMoveMode();
         }
 
-        private void toolStripButton3_Click(object sender, EventArgs e)
+        private void tsmClearPoints_Click(object sender, EventArgs e)
         {
             _timer.Stop();
-
             _points.Clear();
-
-            if (_triangles != null)
-                _triangles.Clear();
-
+            _delaunayTriangulation = null;
+            _conformingTriangulation = null;
+            _pslg = null;
             _timer.Start();
         }
 
-        private void toolStripButton4_Click(object sender, EventArgs e)
+        private void tsmAddPoints_Click(object sender, EventArgs e)
         {
-            _drawPSLG = !_drawPSLG;
+            tsbMode.Tag = _editMode;
+            _editMode = EditMode.Add;
+            _addMode = AddMode.Point;
+            tsbAddMode.Image = tsmAddPoints.Image;
+
+        }
+
+        private void tsmConstrainedEdge_Click(object sender, EventArgs e)
+        {
+            tsbMode.Tag = _editMode;
+            _editMode = EditMode.Add;
+            _addMode = AddMode.ConstrainedEdge;
+            _drawOptions.DrawPSLG = true;
+            _triangulationMode = TriangulationMode.ConformingDelaunay;
+            tsmShowPSLG.Checked = true;
+            tsbAddMode.Image = tsmConstrainedEdge.Image;
+        }
+
+        private void ChangeToSelectMode()
+        {
+            _editMode = EditMode.Select;
+            _selectedIndices.Clear();
+            _addMode = AddMode.None;
+
+            tsbMode.Image = tsmSelect.Image;
+            tsmAddPoints.Checked = false;
+            tsmConstrainedEdge.Checked = false;
+        }
+
+        private void ChangeToMoveMode()
+        {
+            _editMode = EditMode.Move;
+            tsbMode.Image = tsmMove.Image;
+            _addMode = AddMode.None;
+
+            tsmAddPoints.Checked = false;
+            tsmConstrainedEdge.Checked = false;
+        }
+
+        private void tsmShowPSLG_Click(object sender, EventArgs e)
+        {
+            _drawOptions.DrawPSLG = !_drawOptions.DrawPSLG;
+        }
+
+        private void tsmShowFlippableEdges_Click(object sender, EventArgs e)
+        {
+            _drawOptions.DrawFlippableEdges = !_drawOptions.DrawFlippableEdges;
+        }
+
+        private void tsmDelaunay_Click(object sender, EventArgs e)
+        {
+            _timer.Stop();
+            _triangulationMode = TriangulationMode.Delaunay;
+            _delaunayTriangulation = DelaunayTriangulation.Triangulate(_points);
+            _timer.Start();
+        }
+
+        private void tsmConformingDelaunay_Click(object sender, EventArgs e)
+        {
+            _timer.Stop();
+            _triangulationMode = TriangulationMode.ConformingDelaunay;
+            _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _points, TOL);
+            _pslg = _conformingTriangulation.Pslg;
+            _points = _pslg.Vertices.Select(p => p.Position).ToList();
+            _timer.Start();
         }
     }
 

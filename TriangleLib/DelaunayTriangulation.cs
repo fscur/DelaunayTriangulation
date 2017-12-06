@@ -5,16 +5,51 @@ using System.Linq;
 namespace TriangleLib
 {
     //TODO: parallelize!
+    //https://www.youtube.com/watch?v=FUkmgjB3tSg
     public class DelaunayTriangulation
     {
-        public static List<Triangle> Triangulate(List<Vec2> points)
+        private List<Edge> _edges;
+        public List<Edge> Edges
+        {
+            get
+            {
+                return _edges;
+            }
+        }
+
+        private List<Triangle> _triangles;
+        public List<Triangle> Triangles
+        {
+            get
+            {
+                return _triangles;
+            }
+        }
+
+        private DelaunayTriangulation()
+        {
+        }
+
+
+        public static DelaunayTriangulation Triangulate(List<Vertex> vertices)
+        {
+            if (vertices.Count < 3)
+                throw new ArgumentException("There must be at least three vertices to triangulate.");
+
+            var triangulation = new DelaunayTriangulation();
+            triangulation.Execute(vertices);
+            return triangulation;
+        }
+
+        public static DelaunayTriangulation Triangulate(List<Vec2> points)
         {
             if (points.Count < 3)
                 throw new ArgumentException("There must be at least three points to triangulate.");
 
             var triangulation = new DelaunayTriangulation();
             var vertices = points.Select(p => new Vertex(p)).Distinct();
-            return triangulation.ExecuteTriangulation(vertices);
+            triangulation.Execute(vertices);
+            return triangulation;
         }
 
         //divide and conquer:
@@ -22,11 +57,22 @@ namespace TriangleLib
         //split point set until each division has 2 or 3 points
         //triangulate each division and merge
 
-        private List<Triangle> ExecuteTriangulation(IEnumerable<Vertex> vertices)
+        private void Execute(IEnumerable<Vertex> vertices)
         {
             var orderedVertices = vertices.OrderBy(p => p.Position.X).ThenBy(p => p.Position.Y).ToList();
             var triangles = DivideAndTriangulate(orderedVertices, 0, vertices.Count() - 1);
-            return triangles.Where(t=>!Triangle.IsDegenerate(t)).ToList();
+
+            foreach (var triangle in triangles)
+            {
+                if (triangle.E0 != null)
+                    triangle.E0.RemoveDegenerateTriangles();
+                if (triangle.E1 != null)
+                    triangle.E0.RemoveDegenerateTriangles();
+                if (triangle.E2 != null)
+                    triangle.E0.RemoveDegenerateTriangles();
+            }
+
+            _triangles = triangles.Where(t=>!Triangle.IsDegenerate(t)).ToList();
         }
 
         private List<Triangle> DivideAndTriangulate(List<Vertex> vertices, int startIndex, int endIndex)

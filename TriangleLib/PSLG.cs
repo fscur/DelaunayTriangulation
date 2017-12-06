@@ -9,6 +9,12 @@ namespace TriangleLib
     //planar straight line graph
     public class PSLG
     {
+        private List<Vertex> _vertices;
+        public List<Vertex> Vertices
+        {
+            get { return _vertices; }
+        }
+
         private List<Edge> _edges;
         public List<Edge> Edges
         {
@@ -18,6 +24,7 @@ namespace TriangleLib
         public PSLG()
         {
             _edges = new List<Edge>();
+            _vertices = new List<Vertex>();
         }
 
         public bool Contains(Edge edge)
@@ -39,13 +46,27 @@ namespace TriangleLib
         {
             var e = Find(edge);
             if (e != null)
-                Edges.Remove(e);
+                _edges.Remove(e);
+
+            //TODO: remover vertices?
+            _vertices.Remove(edge.V0);
+            _vertices.Remove(edge.V1);
         }
 
         public void AddEdge(Edge edge)
         {
-            if (!Contains(edge))
-                Edges.Add(edge);
+            if (edge.V0 == edge.V1 || Contains(edge))
+                return;
+            
+            _edges.Add(edge);
+            AddVertex(edge.V0);
+            AddVertex(edge.V1);
+        }
+
+        internal void AddVertex(Vertex vertex)
+        {
+            if (vertex != null && !_vertices.Contains(vertex))
+                _vertices.Add(vertex);
         }
     }
 }

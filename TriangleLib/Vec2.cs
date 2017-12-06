@@ -8,6 +8,10 @@ namespace TriangleLib
 {
     public class Vec2
     {
+        public static Vec2 Zero = new Vec2(0.0, 0.0);
+        public static Vec2 XAxis = new Vec2(1.0, 0.0);
+        public static Vec2 YAxis = new Vec2(0.0, 1.0);
+
         public double X;
         public double Y;
 
@@ -24,7 +28,7 @@ namespace TriangleLib
 
         public override string ToString()
         {
-            return "(" + System.Math.Round(X) + "; " + System.Math.Round(Y) + ")";
+            return string.Format("({0:F30}; {1:F30})", X, Y);
         }
 
         public override bool Equals(Object obj)
@@ -137,3 +141,4 @@ namespace TriangleLib
         }
     }
 }
+

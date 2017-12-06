@@ -67,6 +67,9 @@ namespace TriangleLib
 
         public void RemoveEdge(Edge edge)
         {
+            if (!Edges.Contains(edge))
+                return;
+
             Edges.Remove(edge);
             Edges.Sort(_edgeComparer);
         }

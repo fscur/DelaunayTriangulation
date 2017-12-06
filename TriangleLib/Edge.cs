@@ -73,6 +73,17 @@ namespace TriangleLib
             return new Edge(V1, V0);
         }
 
+        public bool CanFlip()
+        {
+            if (_triangles.Count < 2)
+                return false;
+
+            Vertex v0 = FindOppositeVertex(_triangles[0]);
+            Vertex v1 = FindOppositeVertex(_triangles[1]);
+
+            return Edge.Intersects(this, new Edge(v0, v1));
+        }
+
         public Vertex FindOppositeVertex(Triangle triangle)
         {
             if (Triangles.Count < 1)
@@ -107,15 +118,6 @@ namespace TriangleLib
 
             Vec2 p = edge.FindOppositeVertex(t0).Position;
 
-            //if (t0 == null)
-            //{
-            //    t0 = triangles[0];
-            //    p = edge.FindOppositeVertex(t0).Position;
-            //    return Compare.Greater(Vec2.Length(p - edge.MidPoint), Vec2.Length(edge.V0.Position - edge.MidPoint));
-            //}
-
-            //p = edge.FindOppositeVertex(t0).Position;
-
             return !Triangle.CircumcircleContainsPoint(t0, p);
         }
 
@@ -141,7 +143,7 @@ namespace TriangleLib
 
         internal void RemoveDegenerateTriangles()
         {
-            Triangles.RemoveAll(t => t.E0 == null || t.E2 == null || t.E2 == null);
+            Triangles.RemoveAll(t => Triangle.IsDegenerate(t));
         }
 
         public struct EdgeIntersection
@@ -173,7 +175,7 @@ namespace TriangleLib
 
             var det = x32 * y10 - x10 * y32;
 
-            if (Compare.AlmostEqual(det, 0.0, Compare.TOLERANCE))
+            if (Compare.AlmostEqual(det, 0.0, 0.5E-10))
                 return new EdgeIntersection() { Intersects = false };
 
             var x20 = x2 - x0;
@@ -182,21 +184,9 @@ namespace TriangleLib
             var t = (x32 * y20 - x20 * y32) / det;
             var s = (x10 * y20 - x20 * y10) / det;
 
-            var a = e0.V0.Position + t * (e0.V1.Position - e0.V0.Position);
-            var b = e1.V0.Position + s * (e1.V1.Position - e1.V0.Position);
-
             Vertex vertex = null;
 
-            if (Compare.AlmostEqual(s, 0.0, Compare.TOLERANCE))
-                vertex = e0.V0;
-            else if (Compare.AlmostEqual(s, 1.0, Compare.TOLERANCE))
-                vertex = e0.V1;
-            else if (Compare.AlmostEqual(t, 0.0, Compare.TOLERANCE))
-                vertex = e1.V0;
-            else if (Compare.AlmostEqual(t, 1.0, Compare.TOLERANCE))
-                vertex = e1.V1;
-            else
-                vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position));
+            vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position));
 
             return new EdgeIntersection()
             {
@@ -207,6 +197,16 @@ namespace TriangleLib
                 T = t,
                 Vertex = vertex
             };
+        }
+
+        public static Edge Extend(Edge edge, Vertex edgeVertex, Vertex vertex)
+        {
+            if (edge.V0 == edgeVertex)
+                return new Edge(vertex, edge.V1);
+            else if (edge.V1 == edgeVertex)
+                return new Edge(edge.V0, vertex);
+
+            throw new ArgumentException("Edge must contain edgeVertex.");
         }
     }
 }
