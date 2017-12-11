@@ -106,6 +106,7 @@
             this.tsbAddMode.Name = "tsbAddMode";
             this.tsbAddMode.Size = new System.Drawing.Size(32, 22);
             this.tsbAddMode.Text = "toolStripSplitButton1";
+            this.tsbAddMode.ButtonClick += new System.EventHandler(this.tsbAddMode_ButtonClick);
             // 
             // tsmAddPoints
             // 
@@ -212,6 +213,7 @@
             this.Controls.Add(this.toolStrip1);
             this.Name = "Form1";
             this.Text = "Form1";
+            this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.toolStrip1.ResumeLayout(false);
             this.toolStrip1.PerformLayout();
             this.ResumeLayout(false);

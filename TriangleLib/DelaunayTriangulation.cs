@@ -61,17 +61,7 @@ namespace TriangleLib
         {
             var orderedVertices = vertices.OrderBy(p => p.Position.X).ThenBy(p => p.Position.Y).ToList();
             var triangles = DivideAndTriangulate(orderedVertices, 0, vertices.Count() - 1);
-
-            foreach (var triangle in triangles)
-            {
-                if (triangle.E0 != null)
-                    triangle.E0.RemoveDegenerateTriangles();
-                if (triangle.E1 != null)
-                    triangle.E0.RemoveDegenerateTriangles();
-                if (triangle.E2 != null)
-                    triangle.E0.RemoveDegenerateTriangles();
-            }
-
+            
             _triangles = triangles.Where(t=>!Triangle.IsDegenerate(t)).ToList();
         }
 
@@ -151,6 +141,10 @@ namespace TriangleLib
 
                 var triangle = new Triangle(v0, v1, v2);
                 triangles.Add(triangle);
+
+                triangle.E0.RemoveDegenerateTriangles();
+                triangle.E1.RemoveDegenerateTriangles();
+                triangle.E2.RemoveDegenerateTriangles();
 
                 baseEdge = leftRightEdge;
                 

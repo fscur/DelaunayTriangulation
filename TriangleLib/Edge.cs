@@ -154,6 +154,205 @@ namespace TriangleLib
             public double S;
             public double T;
             public Vertex Vertex;
+            public bool TrueIntersection;
+        }
+        
+        public static EdgeIntersection Intersect2(Edge e0, Edge e1, double tolerance)
+        {
+            //end points are intersecting?
+            if (Compare.Less(Vec2.Length(e0.V0.Position - e1.V0.Position), 2.0 * tolerance))
+            {
+                return new EdgeIntersection()
+                {
+                    Intersects = true,
+                    E0 = e0,
+                    E1 = e1,
+                    S = 0.0,
+                    T = 0.0,
+                    Vertex = new Vertex((e0.V0.Position + e1.V0.Position) * 0.5),
+                    TrueIntersection = false
+                };
+            }
+
+            if (Compare.Less(Vec2.Length(e0.V0.Position - e1.V1.Position), 2.0 * tolerance))
+            {
+                return new EdgeIntersection()
+                {
+                    Intersects = true,
+                    E0 = e0,
+                    E1 = e1,
+                    S = 1.0,
+                    T = 0.0,
+                    Vertex = new Vertex((e0.V0.Position + e1.V1.Position) * 0.5),
+                    TrueIntersection = false
+                };
+            }
+
+            if (Compare.Less(Vec2.Length(e0.V1.Position - e1.V0.Position), 2.0 * tolerance))
+            {
+                return new EdgeIntersection()
+                {
+                    Intersects = true,
+                    E0 = e0,
+                    E1 = e1,
+                    S = 0.0,
+                    T = 1.0,
+                    Vertex = new Vertex((e0.V1.Position + e1.V0.Position) * 0.5),
+                    TrueIntersection = false
+                };
+            }
+
+            if (Compare.Less(Vec2.Length(e0.V1.Position - e1.V1.Position), 2.0 * tolerance))
+            {
+                return new EdgeIntersection()
+                {
+                    Intersects = true,
+                    E0 = e0,
+                    E1 = e1,
+                    S = 1.0,
+                    T = 1.0,
+                    Vertex = new Vertex((e0.V1.Position + e1.V1.Position) * 0.5),
+                    TrueIntersection = false
+                };
+            }
+
+            var edges = new Edge[] { e0, e0, e1, e1 };
+            var points = new Vec2[] { e1.V0.Position, e1.V1.Position, e0.V0.Position, e0.V1.Position };
+            var svalues = new double[] { 0.0, 1.0, 0.0, 1.0 };
+
+            double s;
+            double t;
+
+            for (int i = 0; i < 4; i++)
+            {
+                var e = edges[i];
+                var f = e == e0 ? e1 : e0;
+                var closestPoint = ClosestPointToEdge(e, points[i], tolerance);
+                t = closestPoint.T;
+
+                s = ClosestPointToLine(f, closestPoint.Position, tolerance).T;
+
+                if (Compare.Less(Math.Abs(closestPoint.SignedDistance), tolerance))
+                {
+                    return new EdgeIntersection()
+                    {
+                        Intersects = true,
+                        E0 = e,
+                        E1 = f,
+                        S = s,
+                        T = t,
+                        Vertex = new Vertex(closestPoint.Position),
+                        TrueIntersection = false
+                    };
+                }
+            }
+
+            var x0 = e0.V0.Position.X;
+            var x1 = e0.V1.Position.X;
+            var y0 = e0.V0.Position.Y;
+            var y1 = e0.V1.Position.Y;
+
+            var x2 = e1.V0.Position.X;
+            var x3 = e1.V1.Position.X;
+            var y2 = e1.V0.Position.Y;
+            var y3 = e1.V1.Position.Y;
+
+            var x10 = x1 - x0;
+            var y10 = y1 - y0;
+            var x32 = x3 - x2;
+            var y32 = y3 - y2;
+
+            var det = x32 * y10 - x10 * y32;
+
+            if (Compare.AlmostEqual(det, 0.0, 0.5E-10))
+                return new EdgeIntersection() { Intersects = false };
+
+            var x20 = x2 - x0;
+            var y20 = y2 - y0;
+
+            t = (x32 * y20 - x20 * y32) / det;
+            s = (x10 * y20 - x20 * y10) / det;
+
+
+            Vertex vertex = null;
+
+            vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position));
+
+            return new EdgeIntersection()
+            {
+                Intersects = true,
+                E0 = e0,
+                E1 = e1,
+                S = s,
+                T = t,
+                Vertex = vertex,
+                TrueIntersection = true
+            };
+        }
+
+        public static double Distance(Edge e, Vec2 p, double r)
+        {
+            var a = e.V0.Position;
+            var b = e.V1.Position;
+            var ap = p - a;
+            var ab = b - a;
+            var t = Vec2.Clamp(Vec2.Dot(ap, ab) / Vec2.Dot(ab, ab), 0.0, 1.0);
+            return Math.Abs(Vec2.Length(ap - ab * t) - r);
+        }
+
+        public struct EdgeClosestPoint
+        {
+            public Vec2 Position;
+            public double T;
+            public double SignedDistance;
+        }
+
+        public static EdgeClosestPoint ClosestPointToEdge(Edge e, Vec2 p, double tolerance)
+        {
+            var a = e.V0.Position;
+            var b = e.V1.Position;
+            var c = p;
+
+            var ab = b - a;
+
+            double t = Vec2.Dot(c - a, ab) / Vec2.Dot(ab, ab);
+            
+            if (t < 0.0f)
+                t = 0.0f;
+
+            if (t > 1.0f)
+                t = 1.0f;
+            
+            var point = a + t * ab;
+            //TODO: optimize using squared distance comparisons
+            var signedDistance = Vec2.Length((p - a) - ab * t) - tolerance;
+            return new EdgeClosestPoint()
+            {
+                Position = point,
+                T = t,
+                SignedDistance = signedDistance
+            };
+        }
+
+        public static EdgeClosestPoint ClosestPointToLine(Edge e, Vec2 p, double tolerance)
+        {
+            var a = e.V0.Position;
+            var b = e.V1.Position;
+            var c = p;
+
+            var ab = b - a;
+
+            double t = Vec2.Dot(c - a, ab) / Vec2.Dot(ab, ab);
+            
+            var point = a + t * ab;
+            //TODO: optimize using squared distance comparisons
+            var signedDistance = Vec2.Length((p - a) - ab * t) - tolerance;
+            return new EdgeClosestPoint()
+            {
+                Position = point,
+                T = t,
+                SignedDistance = signedDistance
+            };
         }
 
         public static EdgeIntersection Intersect(Edge e0, Edge e1)

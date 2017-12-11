@@ -139,6 +139,11 @@ namespace TriangleLib
         {
             return Vec2.Round(v, 8);
         }
+
+        public static double Clamp(double v, double a, double b)
+        {
+            return Math.Min(Math.Max(v, a), b);
+        }
     }
 }
 
