@@ -11,10 +11,16 @@ namespace TriangleLib
         private Vertex _vertex;
         private List<MergeNode> _children = new List<MergeNode>();
         private double _weight = 0;
-
+        public bool Used { get; set; }
         public MergeNode(Vertex vertex)
         {
             _vertex = vertex;
+            ShouldMerge = true;
+        }
+
+        public bool IsRoot
+        {
+            get; set;
         }
 
         public void AddChild(MergeNode child, double weight)
@@ -28,88 +34,113 @@ namespace TriangleLib
             get { return _vertex; }
         }
 
-        public double Weight
-        {
-            get { return _weight; }
-        }
+        public double Weight { get { return _weight; } }
 
         public List<MergeNode> Children
         {
             get { return _children; }
         }
+
+        public override string ToString()
+        {
+            return _vertex.ToString() + " - " + _weight;
+        }
+        
+        public bool ShouldMerge { get; set; }
     }
 
     public static class VertexMerger
     {
+        public static Dictionary<Vertex, List<Vertex>> Merge2(List<Vertex> vertices, double tolerance)
+        {
+            return null;
+        }
+
         public static Dictionary<Vertex, List<Vertex>> Merge(List<Vertex> vertices, double tolerance)
         {
-            var nodes = new Dictionary<int, MergeNode>();
-            var length = vertices.Count();
-
-            for (int i = 0; i < length; i++)
+            MergeNode rootNode = new MergeNode(new Vertex(Vec2.Zero));
+            rootNode.IsRoot = true;
+            foreach (var vertex in vertices)
             {
-                var p0 = vertices[i];
+                rootNode.AddChild(new MergeNode(vertex), 0);
+            }
+            
+            while (rootNode.ShouldMerge)
+                rootNode = Merge(rootNode, tolerance);
 
-                MergeNode node;
+            var mergedVertices = new Dictionary<Vertex, List<Vertex>>();
 
-                if (nodes.ContainsKey(i))
-                    node = nodes[i];
-                else
+            foreach (var child in rootNode.Children)
+                if (!mergedVertices.ContainsKey(child.Vertex))
+                    mergedVertices.Add(child.Vertex, child.Children.Select(m => m.Vertex).ToList());
+
+            return mergedVertices;
+        }
+
+        public static MergeNode Merge(MergeNode node, double tolerance)
+        {
+            node.ShouldMerge = false;
+
+            var length = node.Children.Count;
+            for (int i = 0; i < length-1; i++)
+            {
+                var child0 = node.Children[i];
+
+                for (int j = i+1; j < length; j++)
                 {
-                    node = new MergeNode(p0);
-                    nodes.Add(i, node);
-                }
+                    var child1 = node.Children[j];
 
-                for (int j = i + 1; j < length; j++)
-                {
-                    var p1 = vertices[j];
-                    var distance = Vec2.Length(p0.Position - p1.Position);
+                    var p0 = child0.Vertex.Position;
+                    var p1 = child1.Vertex.Position;
 
-                    MergeNode childNode;
-
-                    if (nodes.ContainsKey(j))
-                        childNode = nodes[j];
-                    else
-                    {
-                        childNode = new MergeNode(p1);
-                        nodes.Add(j, childNode);
-                    }
+                    var distance = Vec2.Length(p0 - p1);
 
                     if (Compare.Less(distance, 2.0 * tolerance, Compare.TOLERANCE))
                     {
-                        node.AddChild(childNode, distance);
-                        childNode.AddChild(node, distance);
+                        var weight = 1.0 / (distance * distance);
+
+                        child0.AddChild(child1, weight);
+                        child1.AddChild(child0, weight);
+                        node.ShouldMerge = true;
                     }
                 }
             }
 
-            var orderedNodes = nodes.Values.ToList().OrderByDescending(p => p.Weight).ToList();
-            var mergedVertices = new Dictionary<Vertex, List<Vertex>>();
-
-            while (orderedNodes.Count > 0)
+            var ordered = node.Children.Where(c=>c.Children.Count > 0).OrderByDescending(c => c.Weight).ToList();
+            try
             {
-                var node = orderedNodes[0];
-                var mergedNodes = node.Children.Count + 1;
-
-                var position = node.Vertex.Position;
-
-                var closePoints = new List<Vertex>();
-                closePoints.Add(node.Vertex);
-
-                var children = node.Children;
-
-                foreach (var child in children)
+                while (ordered.Count() > 0)
                 {
-                    position += child.Vertex.Position;
-                    orderedNodes.Remove(child);
-                    closePoints.Add(child.Vertex);
+                    var child = ordered[0];
+
+                    var position = child.Vertex.Position;
+                    var childrenMerged = 1;
+                    var children = child.Children.Where(c => !c.Used);
+                    foreach (var n in children)
+                    {
+                        position += n.Vertex.Position;
+                        childrenMerged++;
+                        node.Children.Remove(n);
+                        n.Used = true;
+                    }
+                    child.Used = true;
+                    var mergedNode = new MergeNode(new Vertex(position / childrenMerged));
+                    mergedNode.Children.AddRange(child.Children);
+                    mergedNode.AddChild(child, 0);
+                    node.Children.Remove(child);
+                    node.AddChild(mergedNode, 0);
+
+                    ordered = node.Children.Where(w => w.Weight > 0).OrderByDescending(c => c.Weight).ToList();
                 }
-
-                mergedVertices.Add(new Vertex(position / mergedNodes), closePoints);
-                orderedNodes.Remove(node);
             }
+            catch (Exception ex)
+            {
 
-            return mergedVertices;
+                return null;
+            }
+            
+
+            return node;
         }
     }
 }

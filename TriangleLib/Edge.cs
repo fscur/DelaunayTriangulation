@@ -157,12 +157,15 @@ namespace TriangleLib
             public bool TrueIntersection;
         }
         
-        public static EdgeIntersection Intersect2(Edge e0, Edge e1, double tolerance)
+        public static List<EdgeIntersection> Intersect2(Edge e0, Edge e1, double tolerance)
         {
+            var intersections = new List<EdgeIntersection>();
+
             //end points are intersecting?
+            //have to test 2 intersections to account for edges with both endpoints inside the tolerance~!~~~~~!!!@!
             if (Compare.Less(Vec2.Length(e0.V0.Position - e1.V0.Position), 2.0 * tolerance))
             {
-                return new EdgeIntersection()
+                intersections.Add(new EdgeIntersection()
                 {
                     Intersects = true,
                     E0 = e0,
@@ -171,12 +174,12 @@ namespace TriangleLib
                     T = 0.0,
                     Vertex = new Vertex((e0.V0.Position + e1.V0.Position) * 0.5),
                     TrueIntersection = false
-                };
+                });
             }
 
             if (Compare.Less(Vec2.Length(e0.V0.Position - e1.V1.Position), 2.0 * tolerance))
             {
-                return new EdgeIntersection()
+                intersections.Add(new EdgeIntersection()
                 {
                     Intersects = true,
                     E0 = e0,
@@ -185,12 +188,12 @@ namespace TriangleLib
                     T = 0.0,
                     Vertex = new Vertex((e0.V0.Position + e1.V1.Position) * 0.5),
                     TrueIntersection = false
-                };
+                });
             }
 
             if (Compare.Less(Vec2.Length(e0.V1.Position - e1.V0.Position), 2.0 * tolerance))
             {
-                return new EdgeIntersection()
+                intersections.Add(new EdgeIntersection()
                 {
                     Intersects = true,
                     E0 = e0,
@@ -199,12 +202,12 @@ namespace TriangleLib
                     T = 1.0,
                     Vertex = new Vertex((e0.V1.Position + e1.V0.Position) * 0.5),
                     TrueIntersection = false
-                };
+                });
             }
 
             if (Compare.Less(Vec2.Length(e0.V1.Position - e1.V1.Position), 2.0 * tolerance))
             {
-                return new EdgeIntersection()
+                intersections.Add(new EdgeIntersection()
                 {
                     Intersects = true,
                     E0 = e0,
@@ -213,7 +216,7 @@ namespace TriangleLib
                     T = 1.0,
                     Vertex = new Vertex((e0.V1.Position + e1.V1.Position) * 0.5),
                     TrueIntersection = false
-                };
+                });
             }
 
             var edges = new Edge[] { e0, e0, e1, e1 };
@@ -234,7 +237,7 @@ namespace TriangleLib
 
                 if (Compare.Less(Math.Abs(closestPoint.SignedDistance), tolerance))
                 {
-                    return new EdgeIntersection()
+                    intersections.Add(new EdgeIntersection()
                     {
                         Intersects = true,
                         E0 = e,
@@ -243,7 +246,34 @@ namespace TriangleLib
                         T = t,
                         Vertex = new Vertex(closestPoint.Position),
                         TrueIntersection = false
-                    };
+                    });
+                }
+            }
+
+            if (intersections.Count > 1)
+            {
+                var vertices = intersections.Where(i => i.Intersects).Select(i => i.Vertex).ToList();
+                intersections.Clear();
+
+                var mergedVertices = VertexMerger.Merge(vertices, tolerance);
+                var mergedIntersections = new List<EdgeIntersection>();
+
+                foreach (var pair in mergedVertices)
+                {
+                    var v = pair.Key;
+                    var averageT = ClosestPointToLine(e0, v.Position, tolerance).T;
+                    var averageS = ClosestPointToLine(e1, v.Position, tolerance).T;
+
+                    intersections.Add(new EdgeIntersection()
+                    {
+                        E0 = e0,
+                        E1 = e1,
+                        T = averageT,
+                        S = averageS,
+                        Intersects = true,
+                        TrueIntersection = false,
+                        Vertex = v
+                    });
                 }
             }
 
@@ -264,8 +294,8 @@ namespace TriangleLib
 
             var det = x32 * y10 - x10 * y32;
 
-            if (Compare.AlmostEqual(det, 0.0, 0.5E-10))
-                return new EdgeIntersection() { Intersects = false };
+            if (Compare.AlmostEqual(det, 0.0, Compare.TOLERANCE))
+                return intersections;
 
             var x20 = x2 - x0;
             var y20 = y2 - y0;
@@ -273,12 +303,11 @@ namespace TriangleLib
             t = (x32 * y20 - x20 * y32) / det;
             s = (x10 * y20 - x20 * y10) / det;
 
-
             Vertex vertex = null;
 
             vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position));
 
-            return new EdgeIntersection()
+            intersections.Add(new EdgeIntersection()
             {
                 Intersects = true,
                 E0 = e0,
@@ -287,7 +316,9 @@ namespace TriangleLib
                 T = t,
                 Vertex = vertex,
                 TrueIntersection = true
-            };
+            });
+
+            return intersections;
         }
 
         public static double Distance(Edge e, Vec2 p, double r)

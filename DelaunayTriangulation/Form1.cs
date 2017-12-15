@@ -49,7 +49,7 @@ namespace Trianglex
     {
         static readonly float POINT_SIZE = 10f;
         static readonly float HALF_POINT_SIZE = POINT_SIZE * 0.5f;
-        static readonly float TOL = 10.0f;
+        static readonly double TOL = 10.0;
 
         Random _rand;
         Timer _timer;
@@ -61,7 +61,7 @@ namespace Trianglex
         DelaunayTriangulation _delaunayTriangulation;
 
         float _zoom = 8.0f;
-        float _zoomInverse = 1.0f/8.0f;
+        float _zoomInverse = 1.0f / 8.0f;
         Vec2 _origin = new Vec2();
         Point _lastMousePosition;
 
@@ -71,7 +71,7 @@ namespace Trianglex
         Edge _tempEdge;
 
         Edge _testEdge = new Edge(new Vertex(new Vec2(-100, 0)), new Vertex(new Vec2(100, 0)));
-        Edge.EdgeIntersection _testIntersection;
+        List<Edge.EdgeIntersection> _testIntersections = new List<Edge.EdgeIntersection>();
 
         DrawOptions _drawOptions = new DrawOptions();
         EditMode _editMode = EditMode.Select;
@@ -99,18 +99,18 @@ namespace Trianglex
             _rand = new Random((int)DateTime.Now.Ticks);
         }
 
-        private List<Vec2> FillPoints(int pointCount, RectangleF bounds)
+        private List<Vertex> FillPoints(int pointCount, RectangleF bounds)
         {
-            var points = new List<Vec2>();
+            var vertices = new List<Vertex>();
 
             for (int i = 0; i < pointCount; i++)
             {
                 var x = (_rand.NextDouble() * 2.0 - 1.0) * bounds.Width * 0.5;
                 var y = (_rand.NextDouble() * 2.0 - 1.0) * bounds.Height * 0.5;
-                points.Add(new Vec2() { X = Math.Round(x), Y = Math.Round(y) });
+                vertices.Add(new Vertex(new Vec2(Math.Round(x), Math.Round(y))));
             }
 
-            return points;
+            return vertices;
         }
 
         protected override void OnShown(EventArgs e)
@@ -223,7 +223,7 @@ namespace Trianglex
                     if (_v0 != p)
                     {
                         _tempEdge = new Edge(_v0, p);
-                        // _testIntersection = Edge.Intersect2(_testEdge, _tempEdge, TOL);
+                        //_testIntersections = Edge.Intersect2(_testEdge, _tempEdge, TOL);
                     }
                 }
             }
@@ -326,6 +326,8 @@ namespace Trianglex
         {
             _timer.Stop();
 
+            //_vertices.AddRange(FillPoints(10000, new RectangleF(-1000,-1000, 2000, 2000)));
+
             // rand
 
             //var halfWidth = ClientRectangle.Width * 0.5f * _zoom;
@@ -341,7 +343,12 @@ namespace Trianglex
             //    _triangles = DelaunayTriangulation.Triangulate(_points);
             //}
 
-
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(880.844910777747, 1000)), new Vertex(new Vec2(853.570983886719, 1000))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1000, 500)), new Vertex(new Vec2(1000, 821.26737343927))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1000, 290.910827636719)), new Vertex(new Vec2(1000, 500))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(1353.57104492188, 290.910827636719)), new Vertex(new Vec2(853.570983886719, 1040.91088867188))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(853.570983886719, 1040.91088867188)), new Vertex(new Vec2(853.570983886719, 290.910827636719))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(853.570983886719, 290.910827636719)), new Vertex(new Vec2(1353.57104492188, 290.910827636719))));
 
             //_pslg.AddEdge(new Edge(new Vertex(new Vec2(2488.81787109375, 1113.5077583591)), new Vertex(new Vec2(2488.81787109375, 1115.24652929936))));
             //_pslg.AddEdge(new Edge(new Vertex(new Vec2(2363.49889793366, 1115.24652929936)), new Vertex(new Vec2(2363.76858208171, 1111.54013426594))));
@@ -362,14 +369,14 @@ namespace Trianglex
             //_pslg.AddEdge(new Edge(new Vertex(new Vec2(-1149.67114257813, 1115.24652929936)), new Vertex(new Vec2(-1149.67114257813, 1056.25690389552))));
 
 
-            //foreach (var edge in _pslg.Edges)
-            //{
-            //    if (!_points.Contains(Vec2.Round(edge.V0.Position)))
-            //        _points.Add(Vec2.Round(edge.V0.Position));
+            foreach (var edge in _pslg.Edges)
+            {
+                if (!_vertices.Contains(edge.V0))
+                    _vertices.Add(edge.V0);
 
-            //    if (!_points.Contains(Vec2.Round(edge.V1.Position)))
-            //        _points.Add(Vec2.Round(edge.V1.Position));
-            //}
+                if (!_vertices.Contains(edge.V1))
+                    _vertices.Add(edge.V1);
+            }
 
             _timer.Start();
         }
@@ -388,7 +395,7 @@ namespace Trianglex
 
             DrawTriangulation(g);
 
-            DrawPoints(g, _vertices.Select(v=>v.Position).ToList(), Color.Blue);
+            DrawPoints(g, _vertices.Select(v => v.Position).ToList(), Color.Blue);
             var selected = _selectedIndices.Select(p => _vertices.ElementAt(p).Position).ToList();
 
             if (selected.Count > 0)
@@ -398,9 +405,12 @@ namespace Trianglex
             //{
             //    Draw(g, _testEdge, pen);
 
-            //    if (_testIntersection.Intersects)
+            //    foreach (var testIntersection in _testIntersections)
             //    {
-            //        Draw(g, _testIntersection.Vertex.Position, Brushes.Red);
+            //        if (testIntersection.Intersects)
+            //        {
+            //            Draw(g, testIntersection.Vertex.Position, Brushes.Red);
+            //        }
             //    }
             //}
 
@@ -468,7 +478,7 @@ namespace Trianglex
         private void DrawAxis(Graphics g, float halfWidth, float halfHeight)
         {
             var w0 = (-halfWidth + (float)_origin.X) * (_zoomInverse);
-            var w1 = (halfWidth+ (float)_origin.X) * (_zoomInverse);
+            var w1 = (halfWidth + (float)_origin.X) * (_zoomInverse);
             var h0 = (-halfHeight + (float)_origin.Y) * (_zoomInverse);
             var h1 = (halfHeight + (float)_origin.Y) * (_zoomInverse);
 
@@ -523,7 +533,11 @@ namespace Trianglex
                 using (var brush = new SolidBrush(color))
                     Draw(g, point, brush);
 
-                var rect = new RectangleF((float)point.X - TOL, (float)point.Y - TOL, 2.0f * TOL, 2.0f * TOL);
+                var rect = new RectangleF(
+                    (float)point.X - (float)TOL, 
+                    (float)point.Y - (float)TOL, 
+                    2.0f * (float)TOL, 
+                    2.0f * (float)TOL);
 
                 using (var pen = new Pen(color, -1))
                     g.DrawEllipse(pen, rect);
@@ -638,17 +652,17 @@ namespace Trianglex
             var v1 = (edge.V1.Position + perp0).ToPointF();
             var v2 = (edge.V0.Position + perp1).ToPointF();
             var v3 = (edge.V1.Position + perp1).ToPointF();
-            
+
             using (var bluePen = new Pen(Brushes.Blue, -1.0f))
             {
                 g.DrawLine(pen, v0.X, v0.Y, v1.X, v1.Y);
                 g.DrawLine(pen, v2.X, v2.Y, v3.X, v3.Y);
 
-                var rect = new RectangleF(p0.X - TOL, p0.Y - TOL, 2.0f * TOL, 2.0f * TOL);
+                var rect = new RectangleF(p0.X - (float)TOL, p0.Y - (float)TOL, 2.0f * (float)TOL, 2.0f * (float)TOL);
 
                 g.DrawEllipse(pen, rect);
 
-                rect = new RectangleF(p1.X - TOL, p1.Y - TOL, 2.0f * TOL, 2.0f * TOL);
+                rect = new RectangleF(p1.X - (float)TOL, p1.Y - (float)TOL, 2.0f * (float)TOL, 2.0f * (float)TOL);
 
                 g.DrawEllipse(pen, rect);
             }
@@ -664,7 +678,7 @@ namespace Trianglex
         {
             if (tsbMode.Tag == null)
                 tsbMode.Tag = EditMode.Select;
-            
+
             switch ((EditMode)tsbMode.Tag)
             {
                 case EditMode.Select:
