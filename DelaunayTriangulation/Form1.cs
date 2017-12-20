@@ -251,6 +251,9 @@ namespace Trianglex
                 {
                     if (_vertices.Count > 2)
                     {
+                        foreach (var vertex in _vertices)
+                            vertex.Edges.Clear();
+
                         _delaunayTriangulation = DelaunayTriangulation.Triangulate(_vertices);
                         _vertices = _vertices.Select(v => new Vertex(v.Position)).ToList();
                     }
@@ -260,6 +263,9 @@ namespace Trianglex
                     _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _vertices, TOL);
                     _pslg = _conformingTriangulation.Pslg;
                     _vertices = _pslg.Vertices;
+
+                    foreach (var vertex in _vertices)
+                        vertex.Edges.Clear();
                 }
             }
 

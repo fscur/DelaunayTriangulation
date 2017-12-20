@@ -45,8 +45,8 @@ namespace TriangleLib
                     return triangulation;
 
                 triangulation.PreProcess(pslg, points);
-                //triangulation.Execute();
-                //triangulation.AddMissingPSLGEdges();
+                triangulation.Execute();
+                triangulation.AddMissingPSLGEdges();
                 //triangulation.RemoveExtraEdges();
 
                 return triangulation;
@@ -67,7 +67,7 @@ namespace TriangleLib
                     return triangulation;
 
                 triangulation.PreProcess(pslg, new List<Vec2>());
-                //triangulation.Execute();
+                triangulation.Execute();
                 //triangulation.AddMissingPSLGEdges();
                 //triangulation.RemoveExtraEdges();
 
@@ -93,11 +93,13 @@ namespace TriangleLib
             //before starting the triangulation, we have to find the pslg edges intersections 
             //and send them to the algorithm as vertices to be triangulated.
             //also, we have to split these intersecting edges in every intersecting vertex found
-            _pslg = CreatePSLGIntersections(_pslg);
+            _pslg = CreatePSLGIntersections(_pslg, points);
             //merge vertex positions, so vertices close to each other are treated as the same
             _pslg = MergePSLGVertices(_pslg, points);
+
+            //_pslg = CreatePSLGIntersections(_pslg);
         }
-        
+
         private PSLG MergePSLGVertices(PSLG pslg, List<Vec2> points)
         {
             for (int i = 0; i < _pslg.Vertices.Count; i++)
@@ -115,12 +117,12 @@ namespace TriangleLib
             }
 
             var verticesToMerge = new List<Vertex>();
-            verticesToMerge.AddRange(points.Select(p=>new Vertex(Vec2.Round(p, 6))));
+            verticesToMerge.AddRange(points.Select(p => new Vertex(Vec2.Round(p, 6))));
 
             for (int i = 0; i < _pslg.Edges.Count; i++)
             {
                 var edge = _pslg.Edges[i];
-                
+
                 if (!verticesToMerge.Contains(edge.V0))
                     verticesToMerge.Add(edge.V0);
 
@@ -132,11 +134,16 @@ namespace TriangleLib
 
             Func<Vertex, Vertex> findMergedVertex = (Vertex v) =>
             {
-                foreach (var mergedVertex in mergedVertices.Keys)
+                foreach (var pair in mergedVertices)
                 {
-                    if (Compare.Less(Vec2.Length(v.Position - mergedVertex.Position), 2.0 * _tolerance, Compare.TOLERANCE))
+                    if (pair.Key == v)
+                        return pair.Key;
+
+                    var mergedVertex = pair.Key;
+                    if (pair.Value.Contains(v))
                         return mergedVertex;
                 }
+
                 return null;
                 throw new NullReferenceException("Could not find merged vertex.");
             };
@@ -162,18 +169,25 @@ namespace TriangleLib
             return rounded;
         }
 
-        private PSLG CreatePSLGIntersections(PSLG pslg)
+        private PSLG CreatePSLGIntersections(PSLG pslg, List<Vec2> points)
         {
+            //pslg = MergePSLGVertices(pslg, points);
             var pslgIntersections = FindPSLGIntersections(pslg);
-
-            foreach (var edge in pslgIntersections.Keys)
+            int k = 3;
+            while (pslgIntersections.Count > 0 && k-- > 0)
             {
-                //we must order edges by t or s param, so we can split the edges from v0 to v1
-                var edgeIntersections = OrderPSLGEdgeIntersections(pslgIntersections[edge], edge, true);
+                foreach (var edge in pslgIntersections.Keys)
+                {
+                    //we must order edges by t or s param, so we can split the edges from v0 to v1
+                    var edgeIntersections = OrderPSLGEdgeIntersections(pslgIntersections[edge], edge, true);
 
-                SplitPSLGEdge(pslg, edge, edgeIntersections);
+                    SplitPSLGEdge(pslg, edge, edgeIntersections);
+                }
+
+                pslg = MergePSLGVertices(pslg, points);
+                pslgIntersections = FindPSLGIntersections(pslg);
+
             }
-
             return pslg;
         }
 
@@ -181,7 +195,7 @@ namespace TriangleLib
         {
             var edgeIntersections = new Dictionary<Edge, List<Edge.EdgeIntersection>>();
             var newPslg = new PSLG();
-            
+
             for (int i = 0; i < pslg.Edges.Count - 1; i++)
             {
                 var e0 = pslg.Edges[i];
@@ -200,8 +214,15 @@ namespace TriangleLib
                             var t0 = intersection.T * e0.Length;
 
                             var gap = 2.0 * _tolerance;
-
-                            if (!intersection.TrueIntersection ||
+                            if (!intersection.TrueIntersection &&
+                                Compare.AlmostEqual(intersection.S, 0, Compare.TOLERANCE) ||
+                                Compare.AlmostEqual(intersection.S, 1, Compare.TOLERANCE) ||
+                                Compare.AlmostEqual(intersection.T, 0, Compare.TOLERANCE) ||
+                                Compare.AlmostEqual(intersection.T, 1, Compare.TOLERANCE))
+                            {
+                                continue;
+                            }
+                            else if (!intersection.TrueIntersection ||
                                 Compare.Greater(s0, -gap, Compare.TOLERANCE) &&
                                 Compare.Less(s0, e1.Length + gap, Compare.TOLERANCE) &&
                                 Compare.Greater(t0, -gap, Compare.TOLERANCE) &&
@@ -226,7 +247,7 @@ namespace TriangleLib
         }
 
         private static List<Tuple<double, Edge.EdgeIntersection>> OrderPSLGEdgeIntersections(
-            List<Edge.EdgeIntersection> edgeIntersections, 
+            List<Edge.EdgeIntersection> edgeIntersections,
             Edge edge,
             bool insertEndPointsAsIntersections)
         {
@@ -276,13 +297,13 @@ namespace TriangleLib
 
             pslg.RemoveEdge(edge);
 
-            
+
             Edge newEdge = null;
 
-            for (int i = 0; i < edgeIntersections.Count-1; i++)
+            for (int i = 0; i < edgeIntersections.Count - 1; i++)
             {
-                Vertex v0 = edgeIntersections[i+0].Item2.Vertex;
-                Vertex v1 = edgeIntersections[i+1].Item2.Vertex;
+                Vertex v0 = edgeIntersections[i + 0].Item2.Vertex;
+                Vertex v1 = edgeIntersections[i + 1].Item2.Vertex;
 
                 if (v0 == v1)
                     continue;
@@ -352,8 +373,14 @@ namespace TriangleLib
         //insert pslg edges not present in the triangulation
         private List<Triangle> AddMissingPSLGEdges()
         {
+            var pslgQueue = new Queue<Edge>();
+
             foreach (var pslgEdge in _pslg.Edges)
+                pslgQueue.Enqueue(pslgEdge);
+
+            while (pslgQueue.Count > 0)
             {
+                var pslgEdge = pslgQueue.Dequeue();
                 var triangleEdges = new List<Edge>();
 
                 foreach (var triangle in _triangles)
@@ -372,15 +399,19 @@ namespace TriangleLib
                     var i = Edge.Intersect2(pslgEdge, edge, _tolerance);
                     foreach (var intersection in i)
                     {
-                        var t = intersection.T;
-                        var s = intersection.S;
-                    
-                        if (Compare.Greater(s, 0.0, Compare.TOLERANCE) &&
-                            Compare.Less(s, 1.0, Compare.TOLERANCE) &&
-                            Compare.Greater(t, 0.0, Compare.TOLERANCE) &&
-                            Compare.Less(t, 1.0, Compare.TOLERANCE))
+                        if (intersection.Intersects)
                         {
-                            intersections.Add(intersection);
+                            var s = intersection.S;
+                            var t = intersection.T;
+
+                            if (intersection.TrueIntersection &&
+                                Compare.Greater(s, 0.0, Compare.TOLERANCE) &&
+                                Compare.Less(s, 1.0, Compare.TOLERANCE) &&
+                                Compare.Greater(t, 0.0, Compare.TOLERANCE) &&
+                                Compare.Less(t, 1.0, Compare.TOLERANCE))
+                            {
+                                intersections.Add(intersection);
+                            }
                         }
                     }
                 }
@@ -403,33 +434,27 @@ namespace TriangleLib
                     if (edge == pslgEdge)
                         continue;
 
-                    //if (edge.CanFlip())
-                    //{
-                    //    var flipEdge = edge.FlipEdge();
+                    if (edge.CanFlip())
+                    {
+                        var flipEdge = edge.FlipEdge();
 
-                    //    if (Edge.Intersects(pslgEdge, flipEdge))
-                    //    {
-                    //        intersectingEdges.Enqueue(edge);
-                    //        continue;
-                    //    }
+                        if (Edge.Intersects(pslgEdge, flipEdge))
+                        {
+                            intersectingEdges.Enqueue(edge);
+                            continue;
+                        }
 
-                    //    DeleteEdge(edge);
+                        DeleteEdge(edge);
 
-                    //    _triangles.Add(new Triangle(edge.V0, flipEdge.V0, flipEdge.V1));
-                    //    _triangles.Add(new Triangle(flipEdge.V0, flipEdge.V1, edge.V1));
-                    //}
-                    //else
-                    //{
-                    //    intersectingEdges.Enqueue(edge);
-                    //}
+                        _triangles.Add(new Triangle(edge.V0, flipEdge.V0, flipEdge.V1));
+                        _triangles.Add(new Triangle(flipEdge.V0, flipEdge.V1, edge.V1));
+                    }
+                    else
+                    {
+                        pslgQueue.Enqueue(pslgEdge);
+                    }
                 }
-
-                //foreach (var edge in edgesToDelete)
-                //{
-                //    DeleteEdge(edge);
-                //}
             }
-
             return _triangles;
         }
 

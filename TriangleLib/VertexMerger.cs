@@ -10,6 +10,7 @@ namespace TriangleLib
     {
         private Vertex _vertex;
         private List<MergeNode> _children = new List<MergeNode>();
+        private List<Vertex> _vertices = new List<Vertex>();
         private double _weight = 0;
         public bool Used { get; set; }
         public MergeNode(Vertex vertex)
@@ -26,6 +27,7 @@ namespace TriangleLib
         public void AddChild(MergeNode child, double weight)
         {
             _children.Add(child);
+            _vertices.Add(child.Vertex);
             _weight += weight;
         }
 
@@ -40,6 +42,8 @@ namespace TriangleLib
         {
             get { return _children; }
         }
+
+        public List<Vertex> Vertices { get { return _vertices; } }
 
         public override string ToString()
         {
@@ -81,14 +85,16 @@ namespace TriangleLib
         {
             node.ShouldMerge = false;
 
-            var length = node.Children.Count;
+            var children = node.Children;
+
+            var length = children.Count;
             for (int i = 0; i < length-1; i++)
             {
-                var child0 = node.Children[i];
+                var child0 = children[i];
 
                 for (int j = i+1; j < length; j++)
                 {
-                    var child1 = node.Children[j];
+                    var child1 = children[j];
 
                     var p0 = child0.Vertex.Position;
                     var p1 = child1.Vertex.Position;
@@ -101,12 +107,22 @@ namespace TriangleLib
 
                         child0.AddChild(child1, weight);
                         child1.AddChild(child0, weight);
+
+                        foreach (var n in child0.Children)
+                            if (!child1.Children.Contains(n))
+                                child1.AddChild(n, 0);
+
+                        foreach (var n in child1.Children)
+                            if (!child0.Children.Contains(n))
+                                child0.AddChild(n, 0);
+
                         node.ShouldMerge = true;
                     }
                 }
             }
 
             var ordered = node.Children.Where(c=>c.Children.Count > 0).OrderByDescending(c => c.Weight).ToList();
+
             try
             {
                 while (ordered.Count() > 0)
@@ -115,19 +131,30 @@ namespace TriangleLib
 
                     var position = child.Vertex.Position;
                     var childrenMerged = 1;
-                    var children = child.Children.Where(c => !c.Used);
+                    var verticesToRemove = new List<Vertex>();
+
+                    children = child.Children;
+                    
                     foreach (var n in children)
                     {
                         position += n.Vertex.Position;
                         childrenMerged++;
                         node.Children.Remove(n);
-                        n.Used = true;
+                        verticesToRemove.Add(n.Vertex);
                     }
-                    child.Used = true;
+
                     var mergedNode = new MergeNode(new Vertex(position / childrenMerged));
                     mergedNode.Children.AddRange(child.Children);
                     mergedNode.AddChild(child, 0);
                     node.Children.Remove(child);
+
+                    foreach (var n in node.Children)
+                        foreach (var vertexToRemove in verticesToRemove)
+                            n.Children.RemoveAll(nd => nd.Vertex == vertexToRemove);
+
+                    foreach (var n in mergedNode.Children)
+                        n.Children.Clear();
+
                     node.AddChild(mergedNode, 0);
 
                     ordered = node.Children.Where(w => w.Weight > 0).OrderByDescending(c => c.Weight).ToList();

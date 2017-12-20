@@ -312,8 +312,8 @@ namespace TriangleLib
                 Intersects = true,
                 E0 = e0,
                 E1 = e1,
-                S = s,
-                T = t,
+                S = Math.Round(s, 6),
+                T = Math.Round(t, 6),
                 Vertex = vertex,
                 TrueIntersection = true
             });

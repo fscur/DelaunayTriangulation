@@ -17,6 +17,9 @@ namespace TriangleLib
             }
         }
 
+        public List<Vertex> _vertices = new List<Vertex>();
+        public List<Vertex> Vertices { get { return _vertices; } }
+
         private List<Triangle> _triangles;
         public List<Triangle> Triangles
         {
@@ -59,6 +62,7 @@ namespace TriangleLib
 
         private void Execute(IEnumerable<Vertex> vertices)
         {
+            _vertices = vertices.ToList();
             var orderedVertices = vertices.OrderBy(p => p.Position.X).ThenBy(p => p.Position.Y).ToList();
             var triangles = DivideAndTriangulate(orderedVertices, 0, vertices.Count() - 1);
             
