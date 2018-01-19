@@ -239,13 +239,13 @@ namespace GeometryLibTester
         
         public void DrawLine(Vec2 start, Vec2 end, Pen pen)
         {
-            var id = GetNewID(DrawableType.Line);
-            _drawables.Add()
+            //var id = GetNewID(DrawableType.Line);
+            //_drawables.Add()
         }
 
         static long GetNewId(DrawableType type)
         {
-
+            return 0;
         }
     }
 

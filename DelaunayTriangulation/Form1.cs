@@ -88,6 +88,7 @@ namespace Trianglex
             tsbAddMode.Tag = AddMode.Vertex;
             _addMode = AddMode.Vertex;
             _editMode = EditMode.Select;
+            _drawOptions.DrawPSLG = true;
 
             _timer = new Timer();
             _timer.Tick += (sender, e) =>
@@ -223,6 +224,9 @@ namespace Trianglex
                     if (_v0 != p)
                     {
                         _tempEdge = new Edge(_v0, p);
+                        _pslg.AddEdge(_tempEdge);
+                        _intersections = BentleyOttmann.Intersect(_pslg.Edges);
+                        _pslg.RemoveEdge(_tempEdge);
                         //_testIntersections = Edge.Intersect2(_testEdge, _tempEdge, TOL);
                     }
                 }
@@ -375,6 +379,11 @@ namespace Trianglex
             //_pslg.AddEdge(new Edge(new Vertex(new Vec2(-1149.67114257813, 1115.24652929936)), new Vertex(new Vec2(-1149.67114257813, 1056.25690389552))));
 
 
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(100, 0)), new Vertex(new Vec2(600, 0))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(-200, 100)), new Vertex(new Vec2(300, 100))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(-100, 200)), new Vertex(new Vec2(400, 200))));
+            //_pslg.AddEdge(new Edge(new Vertex(new Vec2(0, -200)), new Vertex(new Vec2(500, 500))));
+
             foreach (var edge in _pslg.Edges)
             {
                 if (!_vertices.Contains(edge.V0))
@@ -389,9 +398,6 @@ namespace Trianglex
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            if (_vertices == null)
-                return;
-
             var g = e.Graphics;
             var halfWidth = ClientRectangle.Width * 0.5f;
             var halfHeight = ClientRectangle.Height * 0.5f;
@@ -429,6 +435,14 @@ namespace Trianglex
                 {
                     pen.DashStyle = DashStyle.DashDot;
                     Draw(g, _tempEdge, pen);
+                }
+            }
+
+            if (_intersections.Count > 0)
+            {
+                foreach (var item in _intersections)
+                {
+                    Draw(g, item, Brushes.Green);
                 }
             }
         }
@@ -715,6 +729,7 @@ namespace Trianglex
             _delaunayTriangulation = null;
             _conformingTriangulation = null;
             _pslg = null;
+            _intersections.Clear();
             _timer.Start();
         }
 
@@ -824,6 +839,12 @@ namespace Trianglex
                 default:
                     break;
             }
+        }
+
+        List<Vec2> _intersections = new List<Vec2>();
+        private void bentleyOttmannToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _intersections = BentleyOttmann.Intersect(_pslg.Edges);
         }
     }
 

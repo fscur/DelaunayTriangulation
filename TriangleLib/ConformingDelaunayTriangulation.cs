@@ -41,34 +41,12 @@ namespace TriangleLib
             {
                 var triangulation = new ConformingDelaunayTriangulation(pslg, tolerance);
 
-                if (pslg.Vertices.Count + points.Count < 1)
+                if (pslg.Vertices.Count + points.Count < 3)
                     return triangulation;
 
                 triangulation.PreProcess(pslg, points);
                 triangulation.Execute();
                 triangulation.AddMissingPSLGEdges();
-                //triangulation.RemoveExtraEdges();
-
-                return triangulation;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to the ground.");
-            }
-        }
-
-        public static ConformingDelaunayTriangulation Triangulate(PSLG pslg, double tolerance)
-        {
-            try
-            {
-                var triangulation = new ConformingDelaunayTriangulation(pslg, tolerance);
-
-                if (pslg.Edges.Count < 1)
-                    return triangulation;
-
-                triangulation.PreProcess(pslg, new List<Vec2>());
-                triangulation.Execute();
-                //triangulation.AddMissingPSLGEdges();
                 //triangulation.RemoveExtraEdges();
 
                 return triangulation;
@@ -214,6 +192,7 @@ namespace TriangleLib
                             var t0 = intersection.T * e0.Length;
 
                             var gap = 2.0 * _tolerance;
+
                             if (!intersection.TrueIntersection &&
                                 Compare.AlmostEqual(intersection.S, 0, Compare.TOLERANCE) ||
                                 Compare.AlmostEqual(intersection.S, 1, Compare.TOLERANCE) ||

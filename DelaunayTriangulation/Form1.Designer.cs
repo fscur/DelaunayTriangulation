@@ -46,6 +46,7 @@
             this.toolStripDropDownButton1 = new System.Windows.Forms.ToolStripDropDownButton();
             this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem2 = new System.Windows.Forms.ToolStripMenuItem();
+            this.bentleyOttmannToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -183,7 +184,8 @@
             this.toolStripDropDownButton1.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.toolStripDropDownButton1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolStripMenuItem1,
-            this.toolStripMenuItem2});
+            this.toolStripMenuItem2,
+            this.bentleyOttmannToolStripMenuItem});
             this.toolStripDropDownButton1.Image = ((System.Drawing.Image)(resources.GetObject("toolStripDropDownButton1.Image")));
             this.toolStripDropDownButton1.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.toolStripDropDownButton1.Name = "toolStripDropDownButton1";
@@ -204,6 +206,13 @@
             this.toolStripMenuItem2.Size = new System.Drawing.Size(191, 22);
             this.toolStripMenuItem2.Text = "Conforming Delaunay";
             this.toolStripMenuItem2.Click += new System.EventHandler(this.tsmConformingDelaunay_Click);
+            // 
+            // bentleyOttmannToolStripMenuItem
+            // 
+            this.bentleyOttmannToolStripMenuItem.Name = "bentleyOttmannToolStripMenuItem";
+            this.bentleyOttmannToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
+            this.bentleyOttmannToolStripMenuItem.Text = "Bentley Ottmann";
+            this.bentleyOttmannToolStripMenuItem.Click += new System.EventHandler(this.bentleyOttmannToolStripMenuItem_Click);
             // 
             // Form1
             // 
@@ -240,6 +249,7 @@
         private System.Windows.Forms.ToolStripSplitButton tsbMode;
         private System.Windows.Forms.ToolStripMenuItem tsmSelect;
         private System.Windows.Forms.ToolStripMenuItem tsmMove;
+        private System.Windows.Forms.ToolStripMenuItem bentleyOttmannToolStripMenuItem;
     }
 }
 

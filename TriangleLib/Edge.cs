@@ -32,10 +32,20 @@ namespace TriangleLib
             get { return (V0.Position + V1.Position) * 0.5; }
         }
 
+        public double Slope
+        {
+            get
+            {
+                return (V1.Position.Y - V0.Position.Y) / (V1.Position.X - V0.Position.X);
+            }
+        }
+
         public Edge(Vertex v0, Vertex v1)
         {
-            _v0 = v0;
-            _v1 = v1;
+            var comparer = new Vec2Comparer();
+            var v0ToTheLeft = comparer.Compare(v0.Position, v1.Position) < 0;
+            _v0 = v0ToTheLeft ? v0 : v1;
+            _v1 = v0ToTheLeft ? v1 : v0;
             _length = Vec2.Length(_v1.Position - _v0.Position);
             _direction = (_v1.Position - _v0.Position) / _length;
             _triangles = new List<Triangle>();
@@ -425,7 +435,8 @@ namespace TriangleLib
                 E1 = e1,
                 S = s,
                 T = t,
-                Vertex = vertex
+                Vertex = vertex,
+                TrueIntersection = true
             };
         }
 
