@@ -45,8 +45,8 @@ namespace TriangleLib
                     return triangulation;
 
                 triangulation.PreProcess(pslg, points);
-                triangulation.Execute();
-                triangulation.AddMissingPSLGEdges();
+                //triangulation.Execute();
+                //triangulation.AddMissingPSLGEdges();
                 //triangulation.RemoveExtraEdges();
 
                 return triangulation;
@@ -71,11 +71,29 @@ namespace TriangleLib
             //before starting the triangulation, we have to find the pslg edges intersections 
             //and send them to the algorithm as vertices to be triangulated.
             //also, we have to split these intersecting edges in every intersecting vertex found
-            _pslg = CreatePSLGIntersections(_pslg, points);
-            //merge vertex positions, so vertices close to each other are treated as the same
-            _pslg = MergePSLGVertices(_pslg, points);
+            var pslgIntersections = BentleyOttmann.GetEdgeIntersections(_pslg.Edges, _tolerance);
 
-            //_pslg = CreatePSLGIntersections(_pslg);
+            int k = 3;
+            while (pslgIntersections.Count > 0)
+            {
+                foreach (var edge in pslgIntersections.Keys)
+                {
+                    //we must order edges by t or s param, so we can split the edges from v0 to v1
+                    var edgeIntersections = OrderPSLGEdgeIntersections(pslgIntersections[edge], edge, true);
+
+                    SplitPSLGEdge(_pslg, edge, edgeIntersections);
+                }
+
+                _pslg = MergePSLGVertices(_pslg, points);
+
+                if (k == 0)
+                    break;
+
+                k--;
+                pslgIntersections = BentleyOttmann.GetEdgeIntersections(_pslg.Edges, _tolerance);
+            }
+
+            _pslg = MergePSLGVertices(_pslg, points);
         }
 
         private PSLG MergePSLGVertices(PSLG pslg, List<Vec2> points)
@@ -147,28 +165,6 @@ namespace TriangleLib
             return rounded;
         }
 
-        private PSLG CreatePSLGIntersections(PSLG pslg, List<Vec2> points)
-        {
-            //pslg = MergePSLGVertices(pslg, points);
-            var pslgIntersections = FindPSLGIntersections(pslg);
-            int k = 3;
-            while (pslgIntersections.Count > 0 && k-- > 0)
-            {
-                foreach (var edge in pslgIntersections.Keys)
-                {
-                    //we must order edges by t or s param, so we can split the edges from v0 to v1
-                    var edgeIntersections = OrderPSLGEdgeIntersections(pslgIntersections[edge], edge, true);
-
-                    SplitPSLGEdge(pslg, edge, edgeIntersections);
-                }
-
-                pslg = MergePSLGVertices(pslg, points);
-                pslgIntersections = FindPSLGIntersections(pslg);
-
-            }
-            return pslg;
-        }
-
         private Dictionary<Edge, List<Edge.EdgeIntersection>> FindPSLGIntersections(PSLG pslg)
         {
             var edgeIntersections = new Dictionary<Edge, List<Edge.EdgeIntersection>>();
@@ -225,15 +221,26 @@ namespace TriangleLib
             return edgeIntersections;
         }
 
-        private static List<Tuple<double, Edge.EdgeIntersection>> OrderPSLGEdgeIntersections(
+        private List<Tuple<double, Edge.EdgeIntersection>> OrderPSLGEdgeIntersections(
             List<Edge.EdgeIntersection> edgeIntersections,
             Edge edge,
             bool insertEndPointsAsIntersections)
         {
             var orderedIntersections = new List<Tuple<double, Edge.EdgeIntersection>>();
 
+            bool insertStartPoint = true;
+            bool insertEndPoint = true;
+
             foreach (var edgeIntersection in edgeIntersections)
             {
+                var distToV0 = Vec2.Length(edgeIntersection.Vertex.Position - edge.V0.Position);
+                if (Compare.Less(distToV0, 2.0 *_tolerance))
+                    insertStartPoint = false;
+
+                var distToV1 = Vec2.Length(edgeIntersection.Vertex.Position - edge.V1.Position);
+                if (Compare.Less(distToV1, 2.0 * _tolerance))
+                    insertEndPoint = false;
+
                 if (edgeIntersection.E0 == edge)
                     orderedIntersections.Add(new Tuple<double, Edge.EdgeIntersection>(edgeIntersection.T, edgeIntersection));
                 else
@@ -242,28 +249,33 @@ namespace TriangleLib
 
             if (insertEndPointsAsIntersections)
             {
-                // insert endpoints as fake intersections, so we can use them in the split algorithm
-                orderedIntersections.Add(new Tuple<double, Edge.EdgeIntersection>(0.0, new Edge.EdgeIntersection()
+                if (insertStartPoint)
                 {
-                    E0 = edge,
-                    E1 = null,
-                    Intersects = true,
-                    S = 0.0,
-                    T = 0.0,
-                    TrueIntersection = true,
-                    Vertex = edge.V0
-                }));
+                    orderedIntersections.Add(new Tuple<double, Edge.EdgeIntersection>(0.0, new Edge.EdgeIntersection()
+                    {
+                        E0 = edge,
+                        E1 = null,
+                        Intersects = true,
+                        S = 0.0,
+                        T = 0.0,
+                        TrueIntersection = true,
+                        Vertex = edge.V0
+                    }));
+                }
 
-                orderedIntersections.Add(new Tuple<double, Edge.EdgeIntersection>(1.0, new Edge.EdgeIntersection()
+                if (insertEndPoint)
                 {
-                    E0 = edge,
-                    E1 = null,
-                    Intersects = true,
-                    S = 1.0,
-                    T = 1.0,
-                    TrueIntersection = true,
-                    Vertex = edge.V1
-                }));
+                    orderedIntersections.Add(new Tuple<double, Edge.EdgeIntersection>(1.0, new Edge.EdgeIntersection()
+                    {
+                        E0 = edge,
+                        E1 = null,
+                        Intersects = true,
+                        S = 1.0,
+                        T = 1.0,
+                        TrueIntersection = true,
+                        Vertex = edge.V1
+                    }));
+                }
             }
 
             return orderedIntersections.OrderBy(i => i.Item1).ToList();

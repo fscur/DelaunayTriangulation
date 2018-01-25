@@ -199,29 +199,48 @@ namespace TriangleLib
 
             return new List<Event>(entry.Value);
         }
+
+        public int Count
+        {
+            get { return _events.Count; }
+        }
+
+        public List<Event> this[int i]
+        {
+            get { return _events.ElementAt(i).Value; }
+        }
     }
 
     public class SweepLine
     {
         private TreeSet<Event> _events;
         private Dictionary<Vec2, List<Event>> _intersections;
+        private Dictionary<Edge, List<EdgeIntersection>> _edgeIntersections;
         private double _position;
         private Vec2 _currentEventPoint;
         private bool _before;
         private EventQueue _queue;
+        private double _tolerance;
+
+        public Dictionary<Edge, List<EdgeIntersection>> EdgeIntersections
+        {
+            get { return _edgeIntersections; }
+        }
 
         public void SetQueue(EventQueue queue)
         {
             _queue = queue;
         }
 
-        public SweepLine()
+        public SweepLine(double tolerance)
         {
             _events = new TreeSet<Event>();
             _intersections = new Dictionary<Vec2, List<Event>>();
+            _edgeIntersections = new Dictionary<Edge, List<EdgeIntersection>>();
             _position = double.MinValue;
             _currentEventPoint = null;
             _before = true;
+            _tolerance = tolerance;
         }
         
         public Event GetSegmentAbove(Event e)
@@ -245,48 +264,74 @@ namespace TriangleLib
         {
             // Return immediately in case either of the events is null, or
             // if one of them is an INTERSECTION event.
-            if (a == null || b == null || a.EventType == EventType.INTERSECTION ||
-                    b.EventType == EventType.INTERSECTION)
-            {
+            if (a == null || 
+                b == null || 
+                a.EventType == EventType.INTERSECTION ||
+                b.EventType == EventType.INTERSECTION)
                 return;
-            }
 
-            // Get the intersection point between 'a' and 'b'.
-            EdgeIntersection intersection;
-            if (!Intersect(a.Segment, b.Segment, out intersection)) return;
+            var intersections = Intersect2(a.Segment, b.Segment);
 
-            var p = intersection.Vertex.Position;
-
-            if (Compare.Less(p.X, _position))
-                return;
-            // Add the intersection.
-
-            List<Event> existing;
-
-            if (_intersections.ContainsKey(p))
+            foreach (var intersection in intersections)
             {
-                existing = _intersections[p];
-                _intersections.Remove(p);
+                //var isFalseIntersection = intersection.Intersects && !intersection.TrueIntersection;
+                //var isTrueIntersection = (intersection.Intersects &&
+                //Compare.Greater(intersection.S, 0.5e-6, Compare.TOLERANCE) &&
+                //Compare.Less(intersection.S, 1.0 - 0.5e-6, Compare.TOLERANCE) &&
+                //Compare.Greater(intersection.T, 0.5e-6, Compare.TOLERANCE) &&
+                //Compare.Less(intersection.T, 1.0 - 0.5e-6, Compare.TOLERANCE));
+
+                //if (!(isFalseIntersection || isTrueIntersection))
+                //    continue;
+                
+                var p = intersection.Vertex.Position;
+
+                List<Event> existing;
+                bool first = false;
+
+                if (_intersections.ContainsKey(p))
+                {
+                    existing = _intersections[p];
+                    _intersections.Remove(p);
+                }
+                else
+                {
+                    first = true;
+                    existing = new List<Event>();
+                }
+
+                if (!existing.Contains(a))
+                    existing.Add(a);
+                if (!existing.Contains(b))
+                    existing.Add(b);
+
+                _intersections.Add(p, existing);
+
+                
+                if (!first)
+                    return;
+
+                AddToEdgeIntersections(a, intersection);
+                AddToEdgeIntersections(b, intersection);
+
+                // If the intersection occurs to the right of the sweep line, OR
+                // if the intersection is on the sweep line and it's above the
+                // current event-point, add it as a new Event to the queue.
+                if ((Compare.Greater(p.X, _position) || (Compare.AlmostEqual(p.X, _position) && Compare.Greater(p.Y, _currentEventPoint.Y))))
+                {
+                    Event intersectionEvent = new Event(EventType.INTERSECTION, p, null, this);
+
+                    _queue.Enqueue(p, intersectionEvent);
+                }
             }
+        }
+
+        private void AddToEdgeIntersections(Event e, EdgeIntersection intersection)
+        {
+            if (!_edgeIntersections.ContainsKey(e.Segment))
+                _edgeIntersections.Add(e.Segment, new List<EdgeIntersection>() { intersection });
             else
-                existing = new List<Event>();
-
-            if (!existing.Contains(a))
-                existing.Add(a);
-            if (!existing.Contains(b))
-                existing.Add(b);
-
-            _intersections.Add(p, existing);
-
-            // If the intersection occurs to the right of the sweep line, OR
-            // if the intersection is on the sweep line and it's above the
-            // current event-point, add it as a new Event to the queue.
-            if (Compare.Greater(p.X, _position) || (Compare.AlmostEqual(p.X, _position) && Compare.Greater(p.Y, _currentEventPoint.Y)))
-            {
-                Event intersectionEvent = new Event(EventType.INTERSECTION, p, null, this);
-
-                _queue.Enqueue(p, intersectionEvent);
-            }
+                _edgeIntersections[e.Segment].Add(intersection);
         }
 
         public bool Intersect(Edge a, Edge b, out EdgeIntersection intersection)
@@ -298,6 +343,12 @@ namespace TriangleLib
                 Compare.Less(intersection.S, 1.0 - 0.5e-6, Compare.TOLERANCE) &&
                 Compare.Greater(intersection.T, 0.5e-6, Compare.TOLERANCE) &&
                 Compare.Less(intersection.T, 1.0 - 0.5e-6, Compare.TOLERANCE));
+        }
+
+        public List<EdgeIntersection> Intersect2(Edge a, Edge b)
+        {
+            var intersections = Edge.SegmentIntersect(a, b, _tolerance);
+            return intersections;
         }
 
         public Dictionary<Vec2, List<Edge>> GetIntersections()
@@ -329,53 +380,101 @@ namespace TriangleLib
                 HandleEvent(e);
             }
         }
-        
+
+        private Dictionary<Event, List<Event>> _missingEventPairs = new Dictionary<Event, List<Event>>();
+
         private void HandleEvent(Event e)
         {
             switch (e.EventType)
             {
                 case EventType.START:
-                    _before = false;
-                    Insert(e);
-                    var sabove = GetSegmentAbove(e);
-                    var sbelow = GetSegmentBelow(e);
-                    CheckIntersection(e, sabove);
-                    CheckIntersection(e, sbelow);
-                    break;
+                    {
+                        LookForPossibleTolerantEvents(e);
+                        _before = false;
+                        Insert(e);
+                        var sabove = GetSegmentAbove(e);
+                        var sbelow = GetSegmentBelow(e);
+                        CheckIntersection(e, sabove);
+                        CheckIntersection(e, sbelow);
+
+                        break;
+                    }
                 case EventType.END:
-                    _before = true;
-                    Remove(e);
-                    CheckIntersection(GetSegmentAbove(e), GetSegmentBelow(e));
-                    break;
+                    {
+                        LookForPossibleTolerantEvents(e);
+                        _before = true;
+                        Remove(e);
+                        var sabove = GetSegmentAbove(e);
+                        var sbelow = GetSegmentBelow(e);
+                        CheckIntersection(sabove, sbelow);
+                        
+                        break;
+                    }
                 case EventType.INTERSECTION:
                     _before = true;
                     var set = _intersections[e.Position];
                     var toInsert = new Stack<Event>();
 
                     foreach (var ev in set)
-                    {
-                        // If we the Event was not already removed, we want to insert it later on.
                         if (Remove(ev))
-                        {
                             toInsert.Push(ev);
-                        }
-                    }
 
                     _before = false;
-                    // Insert all Events that we were able to remove.
+                    
                     while (toInsert.Count > 0)
                     {
                         var ev = toInsert.Pop();
                         Insert(ev);
-                        sabove = GetSegmentAbove(ev);
-                        sbelow = GetSegmentBelow(ev);
+
+                        var sabove = GetSegmentAbove(ev);
+                        var sbelow = GetSegmentBelow(ev);
+
+                        //if (set.Find(p => p == sabove) != null)
+                        //    sabove = GetSegmentAbove(sabove);
+
+                        //if (set.Find(p => p == sbelow) != null)
+                        //    sbelow = GetSegmentBelow(sbelow);
+
                         CheckIntersection(ev, sabove);
                         CheckIntersection(ev, sbelow);
                     }
                     break;
             }
         }
-        
+
+        private void LookForPossibleTolerantEvents(Event e)
+        {
+            var eventsToCheck = new List<Event>();
+            for (int i = 0; i < _queue.Count; i++)
+            {
+                var events = _queue[i];
+
+                foreach (var closeEvent in events)
+                {
+                    if (closeEvent.Segment == e.Segment)
+                        continue;
+
+                    if (closeEvent.EventType == EventType.INTERSECTION)
+                        continue;
+
+                    var d0 = Edge.ClosestPointToEdge(e.Segment, closeEvent.Position, _tolerance).Distance;
+                    var d1 = Edge.ClosestPointToEdge(closeEvent.Segment, e.Position, _tolerance).Distance;
+                    var isClose = Compare.Less(d0, 2.0 * _tolerance) || Compare.Less(d1, 2.0 * _tolerance);
+
+                    if (isClose && !eventsToCheck.Contains(closeEvent))
+                        eventsToCheck.Add(closeEvent);
+                }
+            }
+
+            if (eventsToCheck.Count > 0)
+            {
+                if (!_missingEventPairs.ContainsKey(e))
+                    _missingEventPairs.Add(e, eventsToCheck);
+                else
+                    _missingEventPairs[e].AddRange(eventsToCheck);
+            }
+        }
+
         public bool Insert(Event e)
         {
             return _events.Add(e);
@@ -415,6 +514,23 @@ namespace TriangleLib
             _currentEventPoint = e.Position;
             _position = e.Position.X;
         }
+
+        internal void ProcessIntersections(EventQueue queue)
+        {
+            while (!queue.IsEmpty())
+            {
+                var events = queue.Dequeue();
+                HandleEvents(events);
+            }
+
+            foreach (var e in _missingEventPairs.Keys)
+            {
+                foreach (var missingEvent in _missingEventPairs[e])
+                {
+                    CheckIntersection(e, missingEvent);
+                }
+            }
+        }
     }
 
     public class BentleyOttmann
@@ -423,28 +539,36 @@ namespace TriangleLib
         {
         }
 
-        public static List<Vec2> Intersect(List<Edge> segments)
+        public static List<Vec2> Intersect(List<Edge> segments, double tolerance)
         {
-            return IntersectFull(segments).Keys.ToList();
+            return IntersectFull(segments, tolerance).Keys.ToList();
         }
 
-        public static Dictionary<Vec2, List<Edge>> IntersectFull(List<Edge> segments)
+        public static Dictionary<Vec2, List<Edge>> IntersectFull(List<Edge> segments, double tolerance)
         {
             if (segments.Count < 2)
             {
                 return new Dictionary<Vec2, List<Edge>>();
             }
 
-            SweepLine sweepLine = new SweepLine();
+            SweepLine sweepLine = new SweepLine(tolerance);
             EventQueue queue = new EventQueue(segments, sweepLine);
-
-            while (!queue.IsEmpty())
-            {
-                var events = queue.Dequeue();
-                sweepLine.HandleEvents(events);
-            }
+            
+            sweepLine.ProcessIntersections(queue);
 
             return sweepLine.GetIntersections();
+        }
+
+        public static Dictionary<Edge, List<Edge.EdgeIntersection>> GetEdgeIntersections(List<Edge> segments, double tolerance)
+        {
+            if (segments.Count < 2)
+                return new Dictionary<Edge, List<Edge.EdgeIntersection>>();
+
+            SweepLine sweepLine = new SweepLine(tolerance);
+            EventQueue queue = new EventQueue(segments, sweepLine);
+            sweepLine.ProcessIntersections(queue);
+
+            return sweepLine.EdgeIntersections;
         }
     }
 }

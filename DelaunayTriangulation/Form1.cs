@@ -49,7 +49,7 @@ namespace Trianglex
     {
         static readonly float POINT_SIZE = 10f;
         static readonly float HALF_POINT_SIZE = POINT_SIZE * 0.5f;
-        static readonly double TOL = 10.0;
+        static readonly double TOLERANCE = 10.0;
 
         Random _rand;
         Timer _timer;
@@ -210,8 +210,10 @@ namespace Trianglex
                 }
                 else if (_triangulationMode == TriangulationMode.ConformingDelaunay)
                 {
-                    _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _vertices, TOL);
-                    _pslg = _conformingTriangulation.Pslg;
+                    //_conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _vertices, TOLERANCE);
+
+                    //_intersections = _conformingTriangulation.Intersections;
+                    //_pslg = _conformingTriangulation.Pslg;
                     _vertices = _pslg.Vertices;
                 }
             }
@@ -225,9 +227,10 @@ namespace Trianglex
                     {
                         _tempEdge = new Edge(_v0, p);
                         _pslg.AddEdge(_tempEdge);
-                        _intersections = BentleyOttmann.Intersect(_pslg.Edges);
+                        _intersections = BentleyOttmann.Intersect(_pslg.Edges, TOLERANCE);
                         _pslg.RemoveEdge(_tempEdge);
-                        //_testIntersections = Edge.Intersect2(_testEdge, _tempEdge, TOL);
+                        _testIntersections.Clear();
+                        _testIntersections.AddRange(Edge.Intersect2(_testEdge, _tempEdge, TOLERANCE));
                     }
                 }
             }
@@ -264,7 +267,10 @@ namespace Trianglex
                 }
                 else if (_triangulationMode == TriangulationMode.ConformingDelaunay)
                 {
-                    _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _vertices, TOL);
+                    _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _vertices, TOLERANCE);
+                    
+                    _testIntersections.Clear();
+                    // _testIntersections.AddRange(Edge.Intersect2(_testEdge, _tempEdge, TOLERANCE));
                     _pslg = _conformingTriangulation.Pslg;
                     _vertices = _pslg.Vertices;
 
@@ -492,7 +498,7 @@ namespace Trianglex
             g.ScaleTransform(_zoom, _zoom);
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            g.Clear(Color.White);
+            g.Clear(this.BackColor);
         }
 
         private void DrawAxis(Graphics g, float halfWidth, float halfHeight)
@@ -554,10 +560,10 @@ namespace Trianglex
                     Draw(g, point, brush);
 
                 var rect = new RectangleF(
-                    (float)point.X - (float)TOL, 
-                    (float)point.Y - (float)TOL, 
-                    2.0f * (float)TOL, 
-                    2.0f * (float)TOL);
+                    (float)point.X - (float)TOLERANCE, 
+                    (float)point.Y - (float)TOLERANCE, 
+                    2.0f * (float)TOLERANCE, 
+                    2.0f * (float)TOLERANCE);
 
                 using (var pen = new Pen(color, -1))
                     g.DrawEllipse(pen, rect);
@@ -642,7 +648,7 @@ namespace Trianglex
             g.MultiplyTransform(clientToWorld);
 
             using (var font = new Font(this.Font.FontFamily, 8.0f * _zoomInverse))
-                g.DrawString(string.Format("({0}, {1})", point.X, point.Y), font, Brushes.Black, new PointF(rect.X + 6 * _zoomInverse, -rect.Y - 10 * _zoomInverse));
+                g.DrawString(string.Format("({0}, {1})", point.X, point.Y), font, Brushes.White, new PointF(rect.X + 6 * _zoomInverse, -rect.Y - 10 * _zoomInverse));
 
             g.Restore(state);
         }
@@ -665,8 +671,8 @@ namespace Trianglex
             var p1 = edge.V1.Position.ToPointF();
             g.DrawLine(pen, p0.X, p0.Y, p1.X, p1.Y);
 
-            var perp0 = TOL * Vec2.Perp(Vec2.Normalize(edge.V1.Position - edge.V0.Position));
-            var perp1 = TOL * -Vec2.Perp(Vec2.Normalize(edge.V1.Position - edge.V0.Position));
+            var perp0 = TOLERANCE * Vec2.Perp(Vec2.Normalize(edge.V1.Position - edge.V0.Position));
+            var perp1 = TOLERANCE * -Vec2.Perp(Vec2.Normalize(edge.V1.Position - edge.V0.Position));
 
             var v0 = (edge.V0.Position + perp0).ToPointF();
             var v1 = (edge.V1.Position + perp0).ToPointF();
@@ -678,11 +684,11 @@ namespace Trianglex
                 g.DrawLine(pen, v0.X, v0.Y, v1.X, v1.Y);
                 g.DrawLine(pen, v2.X, v2.Y, v3.X, v3.Y);
 
-                var rect = new RectangleF(p0.X - (float)TOL, p0.Y - (float)TOL, 2.0f * (float)TOL, 2.0f * (float)TOL);
+                var rect = new RectangleF(p0.X - (float)TOLERANCE, p0.Y - (float)TOLERANCE, 2.0f * (float)TOLERANCE, 2.0f * (float)TOLERANCE);
 
                 g.DrawEllipse(pen, rect);
 
-                rect = new RectangleF(p1.X - (float)TOL, p1.Y - (float)TOL, 2.0f * (float)TOL, 2.0f * (float)TOL);
+                rect = new RectangleF(p1.X - (float)TOLERANCE, p1.Y - (float)TOLERANCE, 2.0f * (float)TOLERANCE, 2.0f * (float)TOLERANCE);
 
                 g.DrawEllipse(pen, rect);
             }
@@ -723,6 +729,11 @@ namespace Trianglex
         }
 
         private void tsmClearPoints_Click(object sender, EventArgs e)
+        {
+            Clear();
+        }
+
+        private void Clear()
         {
             _timer.Stop();
             _vertices.Clear();
@@ -819,7 +830,7 @@ namespace Trianglex
         {
             _timer.Stop();
             _triangulationMode = TriangulationMode.ConformingDelaunay;
-            _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _vertices, TOL);
+            _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _vertices, TOLERANCE);
             _pslg = _conformingTriangulation.Pslg;
             _vertices = _pslg.Vertices;
             _timer.Start();
@@ -844,7 +855,18 @@ namespace Trianglex
         List<Vec2> _intersections = new List<Vec2>();
         private void bentleyOttmannToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            _intersections = BentleyOttmann.Intersect(_pslg.Edges);
+            _intersections = BentleyOttmann.Intersect(_pslg.Edges, TOLERANCE);
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.Escape)
+                this.Close();
+
+            if (keyData == Keys.Delete)
+                Clear();
+
+            return base.ProcessCmdKey(ref msg, keyData);
         }
     }
 
