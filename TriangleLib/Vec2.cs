@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TriangleLib
 {
-    public class Vec2
+    public struct Vec2
     {
         public static Vec2 Zero = new Vec2(0.0, 0.0);
         public static Vec2 XAxis = new Vec2(1.0, 0.0);
@@ -14,11 +14,6 @@ namespace TriangleLib
 
         public double X;
         public double Y;
-
-        public Vec2()
-        {
-
-        }
 
         public Vec2(double x, double y)
         {

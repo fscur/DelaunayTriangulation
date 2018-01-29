@@ -87,6 +87,21 @@
       <Name>TriangleLib</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\if_select_18902.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\move-20.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\points.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\select_pslg.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\if_delete_326606.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
@@ -9,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TriangleLib;
+using static TriangleLib.Edge;
 
 namespace Trianglex
 {
@@ -84,8 +86,7 @@ namespace Trianglex
             InitializeComponent();
 
             this.DoubleBuffered = true;
-            tsbMode.Tag = EditMode.Select;
-            tsbAddMode.Tag = AddMode.Vertex;
+
             _addMode = AddMode.Vertex;
             _editMode = EditMode.Select;
             _drawOptions.DrawPSLG = true;
@@ -94,24 +95,10 @@ namespace Trianglex
             _timer.Tick += (sender, e) =>
             {
                 //this.UpdatePoints();
-                this.Invalidate();
+                 this.Invalidate();
             };
 
             _rand = new Random((int)DateTime.Now.Ticks);
-        }
-
-        private List<Vertex> FillPoints(int pointCount, RectangleF bounds)
-        {
-            var vertices = new List<Vertex>();
-
-            for (int i = 0; i < pointCount; i++)
-            {
-                var x = (_rand.NextDouble() * 2.0 - 1.0) * bounds.Width * 0.5;
-                var y = (_rand.NextDouble() * 2.0 - 1.0) * bounds.Height * 0.5;
-                vertices.Add(new Vertex(new Vec2(Math.Round(x), Math.Round(y))));
-            }
-
-            return vertices;
         }
 
         protected override void OnShown(EventArgs e)
@@ -227,10 +214,10 @@ namespace Trianglex
                     {
                         _tempEdge = new Edge(_v0, p);
                         _pslg.AddEdge(_tempEdge);
-                        _intersections = BentleyOttmann.Intersect(_pslg.Edges, TOLERANCE);
+                        //_intersections = BentleyOttmann.Intersect(_pslg.Edges, TOLERANCE);
                         _pslg.RemoveEdge(_tempEdge);
                         _testIntersections.Clear();
-                        _testIntersections.AddRange(Edge.Intersect2(_testEdge, _tempEdge, TOLERANCE));
+                        Edge.SegmentIntersect(_testEdge, _tempEdge, TOLERANCE, _testIntersections);
                     }
                 }
             }
@@ -268,7 +255,7 @@ namespace Trianglex
                 else if (_triangulationMode == TriangulationMode.ConformingDelaunay)
                 {
                     _conformingTriangulation = ConformingDelaunayTriangulation.Triangulate(_pslg, _vertices, TOLERANCE);
-                    
+
                     _testIntersections.Clear();
                     // _testIntersections.AddRange(Edge.Intersect2(_testEdge, _tempEdge, TOLERANCE));
                     _pslg = _conformingTriangulation.Pslg;
@@ -390,6 +377,20 @@ namespace Trianglex
             //_pslg.AddEdge(new Edge(new Vertex(new Vec2(-100, 200)), new Vertex(new Vec2(400, 200))));
             //_pslg.AddEdge(new Edge(new Vertex(new Vec2(0, -200)), new Vertex(new Vec2(500, 500))));
 
+            //var c = 2000;
+            //var w = 100000;
+            //var h = 100000;
+
+            //for (int i = 0; i < c; i++)
+            //{
+            //    var x0 = (_rand.NextDouble() * 2.0 - 1.0) * w * 0.5;
+            //    var y0 = (_rand.NextDouble() * 2.0 - 1.0) * h * 0.5;
+            //    var x1 = (_rand.NextDouble() * 2.0 - 1.0) * w * 0.5;
+            //    var y1 = (_rand.NextDouble() * 2.0 - 1.0) * h * 0.5;
+            //    _pslg.AddEdge(new Edge(new Vertex(new Vec2(x0, y0)), new Vertex(new Vec2(x1, y1))));
+            //}
+
+
             foreach (var edge in _pslg.Edges)
             {
                 if (!_vertices.Contains(edge.V0))
@@ -400,6 +401,20 @@ namespace Trianglex
             }
 
             _timer.Start();
+        }
+
+        private List<Vertex> FillPoints(int pointCount, RectangleF bounds)
+        {
+            var vertices = new List<Vertex>();
+
+            for (int i = 0; i < pointCount; i++)
+            {
+                var x = (_rand.NextDouble() * 2.0 - 1.0) * bounds.Width * 0.5;
+                var y = (_rand.NextDouble() * 2.0 - 1.0) * bounds.Height * 0.5;
+                vertices.Add(new Vertex(new Vec2(Math.Round(x), Math.Round(y))));
+            }
+
+            return vertices;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -423,11 +438,14 @@ namespace Trianglex
             //{
             //    Draw(g, _testEdge, pen);
 
-            //    foreach (var testIntersection in _testIntersections)
+            //    using (var font = new Font(this.Font.FontFamily, 8.0f * _zoomInverse))
             //    {
-            //        if (testIntersection.Intersects)
+            //        foreach (var testIntersection in _testIntersections)
             //        {
-            //            Draw(g, testIntersection.Vertex.Position, Brushes.Red);
+            //            if (testIntersection.Intersects)
+            //            {
+            //                Draw(g, testIntersection.Vertex.Position, Brushes.Red, font);
+            //            }
             //        }
             //    }
             //}
@@ -446,9 +464,12 @@ namespace Trianglex
 
             if (_intersections.Count > 0)
             {
-                foreach (var item in _intersections)
+                using (var font = new Font(this.Font.FontFamily, 8.0f * _zoomInverse))
                 {
-                    Draw(g, item, Brushes.Green);
+                    foreach (var item in _intersections)
+                    {
+                        Draw(g, item, Brushes.Green, font);
+                    }
                 }
             }
         }
@@ -554,26 +575,31 @@ namespace Trianglex
 
         private void DrawPoints(Graphics g, List<Vec2> points, Color color)
         {
-            foreach (var point in points)
+            using (var font = new Font(this.Font.FontFamily, 8.0f * _zoomInverse))
             {
                 using (var brush = new SolidBrush(color))
-                    Draw(g, point, brush);
+                {
+                    using (var pen = new Pen(color, -1))
+                    {
+                        foreach (var point in points)
+                        {
+                            Draw(g, point, brush, font);
 
-                var rect = new RectangleF(
-                    (float)point.X - (float)TOLERANCE, 
-                    (float)point.Y - (float)TOLERANCE, 
-                    2.0f * (float)TOLERANCE, 
-                    2.0f * (float)TOLERANCE);
+                            var rect = new RectangleF(
+                                (float)point.X - (float)TOLERANCE,
+                                (float)point.Y - (float)TOLERANCE,
+                                2.0f * (float)TOLERANCE,
+                                2.0f * (float)TOLERANCE);
 
-                using (var pen = new Pen(color, -1))
-                    g.DrawEllipse(pen, rect);
+                            g.DrawEllipse(pen, rect);
+                        }
+                    }
+                }
             }
         }
 
         private void DrawTriangles(Graphics g, List<Triangle> triangles)
         {
-            var p = PointToWorld(_lastMousePosition);
-
             foreach (var triangle in triangles)
                 Draw(g, triangle, Color.Green);
         }
@@ -620,7 +646,7 @@ namespace Trianglex
             g.FillEllipse(Brushes.Black, (float)p.X - 2.0f, (float)p.Y - 2.0f, (float)4.0f, (float)4.0f);
         }
 
-        private void Draw(Graphics g, Vec2 point, Brush brush)
+        private void Draw(Graphics g, Vec2 point, Brush brush, Font font)
         {
             var x = HALF_POINT_SIZE * _zoomInverse;
             var y = HALF_POINT_SIZE * _zoomInverse;
@@ -647,8 +673,7 @@ namespace Trianglex
 
             g.MultiplyTransform(clientToWorld);
 
-            using (var font = new Font(this.Font.FontFamily, 8.0f * _zoomInverse))
-                g.DrawString(string.Format("({0}, {1})", point.X, point.Y), font, Brushes.White, new PointF(rect.X + 6 * _zoomInverse, -rect.Y - 10 * _zoomInverse));
+            g.DrawString(string.Format("({0}, {1})", point.X, point.Y), font, Brushes.White, new PointF(rect.X + 6 * _zoomInverse, -rect.Y - 10 * _zoomInverse));
 
             g.Restore(state);
         }
@@ -700,24 +725,6 @@ namespace Trianglex
             Draw(g, edge, pen);
         }
 
-        private void tsbMode_ButtonClick(object sender, EventArgs e)
-        {
-            if (tsbMode.Tag == null)
-                tsbMode.Tag = EditMode.Select;
-
-            switch ((EditMode)tsbMode.Tag)
-            {
-                case EditMode.Select:
-                    ChangeToSelectMode();
-                    break;
-                case EditMode.Move:
-                    ChangeToMoveMode();
-                    break;
-                default:
-                    break;
-            }
-        }
-
         private void tsmSelect_Click(object sender, EventArgs e)
         {
             ChangeToSelectMode();
@@ -751,12 +758,8 @@ namespace Trianglex
 
         private void ChangeToAddVertexMode()
         {
-            if (_editMode != EditMode.Add)
-                tsbMode.Tag = _editMode;
-
             _editMode = EditMode.Add;
             _addMode = AddMode.Vertex;
-            tsbAddMode.Image = tsmAddPoints.Image;
         }
 
         private void tsmConstrainedEdge_Click(object sender, EventArgs e)
@@ -766,16 +769,11 @@ namespace Trianglex
 
         private void ChangeToAddConstrainedEdgeMode()
         {
-            if (_editMode != EditMode.Add)
-                tsbMode.Tag = _editMode;
-
             _editMode = EditMode.Add;
             _addMode = AddMode.ConstrainedEdge;
-            tsbAddMode.Image = tsmConstrainedEdge.Image;
 
             _drawOptions.DrawPSLG = true;
             _triangulationMode = TriangulationMode.ConformingDelaunay;
-            tsmShowPSLG.Checked = true;
         }
 
         private void ChangeToSelectMode()
@@ -783,28 +781,17 @@ namespace Trianglex
             _editMode = EditMode.Select;
             _selectedIndices.Clear();
 
-            if (_addMode != AddMode.None)
-                tsbAddMode.Tag = _addMode;
-
             _addMode = AddMode.None;
 
-            tsbMode.Image = tsmSelect.Image;
-            tsmAddPoints.Checked = false;
-            tsmConstrainedEdge.Checked = false;
             this.Cursor = Cursors.Default;
         }
 
         private void ChangeToMoveMode()
         {
             _editMode = EditMode.Move;
-            tsbMode.Image = tsmMove.Image;
-
-            if (_addMode != AddMode.None)
-                tsbAddMode.Tag = _addMode;
 
             _addMode = AddMode.None;
-            tsmAddPoints.Checked = false;
-            tsmConstrainedEdge.Checked = false;
+
             this.Cursor = Cursors.SizeAll;
         }
 
@@ -836,26 +823,15 @@ namespace Trianglex
             _timer.Start();
         }
 
-        private void tsbAddMode_ButtonClick(object sender, EventArgs e)
-        {
-
-            switch ((AddMode)tsbAddMode.Tag)
-            {
-                case AddMode.Vertex:
-                    ChangeToAddVertexMode();
-                    break;
-                case AddMode.ConstrainedEdge:
-                    ChangeToAddConstrainedEdgeMode();
-                    break;
-                default:
-                    break;
-            }
-        }
-
         List<Vec2> _intersections = new List<Vec2>();
         private void bentleyOttmannToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
             _intersections = BentleyOttmann.Intersect(_pslg.Edges, TOLERANCE);
+            stopwatch.Stop();
+
+            System.Windows.Forms.MessageBox.Show(stopwatch.ElapsedMilliseconds.ToString());
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -867,6 +843,31 @@ namespace Trianglex
                 Clear();
 
             return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private void naiveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            foreach (var a in _pslg.Edges)
+            {
+                foreach (var b in _pslg.Edges)
+                {
+                    if (a == b)
+                        continue;
+
+                    var intersections = new List<EdgeIntersection>();
+                    Edge.SegmentIntersect(a, b, TOLERANCE, intersections);
+                    foreach (var i in intersections)
+                    {
+                        _intersections.Add(i.Vertex.Position);
+                    }
+                }
+            }
+
+            stopwatch.Stop();
+            System.Windows.Forms.MessageBox.Show(stopwatch.ElapsedMilliseconds.ToString());
         }
     }
 

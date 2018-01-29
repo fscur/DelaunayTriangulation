@@ -50,7 +50,7 @@ namespace TriangleLib
             _direction = (_v1.Position - _v0.Position) / _length;
             _triangles = new List<Triangle>();
         }
-        
+
         public static bool Intersects(Edge e0, Edge e1)
         {
             if (e0._v0.Position == e1._v0.Position ||
@@ -334,12 +334,10 @@ namespace TriangleLib
         }
         */
 
-        public static List<EdgeIntersection> SegmentIntersect(Edge e0, Edge e1, double tolerance)
+        public static void SegmentIntersect(Edge e0, Edge e1, double tolerance, List<EdgeIntersection> intersections)
         {
             double s;
             double t;
-
-            var intersections = new List<EdgeIntersection>();
 
             var x0 = e0.V0.Position.X;
             var x1 = e0.V1.Position.X;
@@ -359,7 +357,7 @@ namespace TriangleLib
             var det = x32 * y10 - x10 * y32;
 
             if (Compare.AlmostEqual(det, 0.0, Compare.TOLERANCE))
-                return intersections;
+                return;
 
             var x20 = x2 - x0;
             var y20 = y2 - y0;
@@ -367,61 +365,66 @@ namespace TriangleLib
             t = (x32 * y20 - x20 * y32) / det;
             s = (x10 * y20 - x20 * y10) / det;
 
-            Vertex vertex = null;
+            bool trueIntersection = true;
 
-            vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position));
-
-            var intersection = new EdgeIntersection()
+            if (Compare.Less(s, 0.5e-6, Compare.TOLERANCE))
             {
-                Intersects = true,
-                E0 = e0,
-                E1 = e1,
-                S = Math.Round(s, 6),
-                T = Math.Round(t, 6),
-                Vertex = vertex,
-                TrueIntersection = true
-            };
-
-            if (!(Compare.Greater(intersection.S, 0.5e-6, Compare.TOLERANCE) &&
-                Compare.Less(intersection.S, 1.0 - 0.5e-6, Compare.TOLERANCE) &&
-                Compare.Greater(intersection.T, 0.5e-6, Compare.TOLERANCE) &&
-                Compare.Less(intersection.T, 1.0 - 0.5e-6, Compare.TOLERANCE)))
-            {
-                var edges = new Edge[] { e0, e0, e1, e1 };
-                var points = new Vec2[] { e1.V0.Position, e1.V1.Position, e0.V0.Position, e0.V1.Position };
-                var svalues = new double[] { 0.0, 1.0, 0.0, 1.0 };
-
-                for (int i = 0; i < 4; i++)
-                {
-                    var e = edges[i];
-                    var f = e == e0 ? e1 : e0;
-                    var closestPoint = ClosestPointToEdge(e, points[i], tolerance);
-                    t = closestPoint.T;
-                    s = ClosestPointToLine(f, closestPoint.Position, tolerance).T;
-
-                    if (Compare.Less(Math.Abs(closestPoint.SignedDistance), tolerance))
-                    {
-                        var p = closestPoint.Position;
-                        //t = Vec2.Dot(Vec2.Normalize(e.V1.Position - e.V0.Position), p - e.V0.Position) / e.Length;
-                        //s = Vec2.Dot(Vec2.Normalize(f.V1.Position - f.V0.Position), p - f.V0.Position) / f.Length;
-
-                        intersections.Add(new EdgeIntersection()
-                        {
-                            Intersects = true,
-                            E0 = e,
-                            E1 = f,
-                            S = s,
-                            T = t,
-                            Vertex = new Vertex(p),
-                            TrueIntersection = false
-                        });
-                    }
-                }
+                EndPointIntersect(e0, e1, e1.V0.Position, tolerance, intersections);
+                trueIntersection = false;
             }
-            else
-                intersections.Add(intersection);
+            else if (Compare.Greater(s, 1.0 - 0.5e-6, Compare.TOLERANCE))
+            {
+                EndPointIntersect(e0, e1, e1.V1.Position, tolerance, intersections);
+                trueIntersection = false;
+            }
 
-            return intersections;
+            if (Compare.Less(t, 0.5e-6, Compare.TOLERANCE))
+            {
+                EndPointIntersect(e1, e0, e0.V0.Position, tolerance, intersections);
+                trueIntersection = false;
+            }
+            else if (Compare.Greater(t, 1.0 - 0.5e-6, Compare.TOLERANCE))
+            {
+                EndPointIntersect(e1, e0, e0.V1.Position, tolerance, intersections);
+                trueIntersection = false;
+            }
+
+            if (trueIntersection)
+            {
+                intersections.Add(new EdgeIntersection()
+                {
+                    Intersects = true,
+                    E0 = e0,
+                    E1 = e1,
+                    S = s,
+                    T = t,
+                    Vertex = new Vertex(e0.V0.Position + t * (e0.V1.Position - e0.V0.Position)),
+                    TrueIntersection = true
+                });
+            }
+        }
+
+        private static void EndPointIntersect(Edge e0, Edge e1, Vec2 endPoint, double tolerance, List<EdgeIntersection> intersections)
+        {
+            var e = e0;
+            var f = e1;
+            var closestPoint = ClosestPointToEdge(e, endPoint, tolerance);
+            var t = closestPoint.T;
+            var s = ClosestPointToLine(f, closestPoint.Position, tolerance).T;
+
+            if (Compare.Less(Math.Abs(closestPoint.SignedDistance), tolerance))
+            {
+                intersections.Add(new EdgeIntersection()
+                {
+                    Intersects = true,
+                    E0 = e,
+                    E1 = f,
+                    S = s,
+                    T = t,
+                    Vertex = new Vertex(closestPoint.Position),
+                    TrueIntersection = false
+                });
+            }
         }
 
         public static List<EdgeIntersection> Intersect2(Edge e0, Edge e1, double tolerance)
@@ -448,7 +451,7 @@ namespace TriangleLib
                     var p = closestPoint.Position;
                     //t = Vec2.Dot(Vec2.Normalize(e.V1.Position - e.V0.Position), p - e.V0.Position) / e.Length;
                     //s = Vec2.Dot(Vec2.Normalize(f.V1.Position - f.V0.Position), p - f.V0.Position) / f.Length;
-                    
+
                     intersections.Add(new EdgeIntersection()
                     {
                         Intersects = true,
@@ -536,13 +539,13 @@ namespace TriangleLib
             var ab = b - a;
 
             double t = Vec2.Dot(c - a, ab) / Vec2.Dot(ab, ab);
-            
+
             if (t < 0.0f)
                 t = 0.0f;
 
             if (t > 1.0f)
                 t = 1.0f;
-            
+
             var point = a + t * ab;
             //TODO: optimize using squared distance comparisons
             var distance = Vec2.Length((p - a) - ab * t);
@@ -565,7 +568,7 @@ namespace TriangleLib
             var ab = b - a;
 
             double t = Vec2.Dot(c - a, ab) / Vec2.Dot(ab, ab);
-            
+
             var point = a + t * ab;
             //TODO: optimize using squared distance comparisons
             var distance = Vec2.Length((p - a) - ab * t);

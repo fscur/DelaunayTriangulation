@@ -45,8 +45,8 @@ namespace TriangleLib
                     return triangulation;
 
                 triangulation.PreProcess(pslg, points);
-                //triangulation.Execute();
-                //triangulation.AddMissingPSLGEdges();
+                triangulation.Execute();
+                triangulation.AddMissingPSLGEdges();
                 //triangulation.RemoveExtraEdges();
 
                 return triangulation;
@@ -71,7 +71,8 @@ namespace TriangleLib
             //before starting the triangulation, we have to find the pslg edges intersections 
             //and send them to the algorithm as vertices to be triangulated.
             //also, we have to split these intersecting edges in every intersecting vertex found
-            var pslgIntersections = BentleyOttmann.GetEdgeIntersections(_pslg.Edges, _tolerance);
+
+            var pslgIntersections = FindPSLGIntersections(_pslg);
 
             int k = 3;
             while (pslgIntersections.Count > 0)
@@ -90,10 +91,21 @@ namespace TriangleLib
                     break;
 
                 k--;
-                pslgIntersections = BentleyOttmann.GetEdgeIntersections(_pslg.Edges, _tolerance);
+                pslgIntersections = FindPSLGIntersections(_pslg);
             }
 
             _pslg = MergePSLGVertices(_pslg, points);
+
+            //var pslgIntersections = FindPSLGIntersections(_pslg);
+            //foreach (var edge in pslgIntersections.Keys)
+            //{
+            //    //we must order edges by t or s param, so we can split the edges from v0 to v1
+            //    var edgeIntersections = OrderPSLGEdgeIntersections(pslgIntersections[edge], edge, true);
+
+            //    SplitPSLGEdge(_pslg, edge, edgeIntersections);
+            //}
+
+            //_pslg = MergePSLGVertices(_pslg, points);
         }
 
         private PSLG MergePSLGVertices(PSLG pslg, List<Vec2> points)
@@ -170,6 +182,13 @@ namespace TriangleLib
             var edgeIntersections = new Dictionary<Edge, List<Edge.EdgeIntersection>>();
             var newPslg = new PSLG();
 
+            //foreach (var e0 in pslg.Edges)
+            //{
+            //    foreach (var e1 in pslg.Edges)
+            //    {
+            //        if (e0 == e1)
+            //            continue;
+
             for (int i = 0; i < pslg.Edges.Count - 1; i++)
             {
                 var e0 = pslg.Edges[i];
@@ -178,42 +197,23 @@ namespace TriangleLib
                 {
                     var e1 = pslg.Edges[j];
 
-                    var intersections = Edge.Intersect2(e0, e1, _tolerance);
+                    List<Edge.EdgeIntersection> intersections = new List<Edge.EdgeIntersection>();
+                    Edge.SegmentIntersect(e0, e1, _tolerance, intersections);
+
+                    if (intersections.Count == 0)
+                        continue;
 
                     foreach (var intersection in intersections)
                     {
-                        if (intersection.Intersects)
-                        {
-                            var s0 = intersection.S * e1.Length;
-                            var t0 = intersection.T * e0.Length;
+                        if (!edgeIntersections.ContainsKey(e0))
+                            edgeIntersections.Add(e0, new List<Edge.EdgeIntersection>() { intersection });
+                        else
+                            edgeIntersections[e0].Add(intersection);
 
-                            var gap = 2.0 * _tolerance;
-
-                            if (!intersection.TrueIntersection &&
-                                Compare.AlmostEqual(intersection.S, 0, Compare.TOLERANCE) ||
-                                Compare.AlmostEqual(intersection.S, 1, Compare.TOLERANCE) ||
-                                Compare.AlmostEqual(intersection.T, 0, Compare.TOLERANCE) ||
-                                Compare.AlmostEqual(intersection.T, 1, Compare.TOLERANCE))
-                            {
-                                continue;
-                            }
-                            else if (!intersection.TrueIntersection ||
-                                Compare.Greater(s0, -gap, Compare.TOLERANCE) &&
-                                Compare.Less(s0, e1.Length + gap, Compare.TOLERANCE) &&
-                                Compare.Greater(t0, -gap, Compare.TOLERANCE) &&
-                                Compare.Less(t0, e0.Length + gap, Compare.TOLERANCE))
-                            {
-                                if (!edgeIntersections.ContainsKey(e0))
-                                    edgeIntersections.Add(e0, new List<Edge.EdgeIntersection>() { intersection });
-                                else
-                                    edgeIntersections[e0].Add(intersection);
-
-                                if (!edgeIntersections.ContainsKey(e1))
-                                    edgeIntersections.Add(e1, new List<Edge.EdgeIntersection>() { intersection });
-                                else
-                                    edgeIntersections[e1].Add(intersection);
-                            }
-                        }
+                        if (!edgeIntersections.ContainsKey(e1))
+                            edgeIntersections.Add(e1, new List<Edge.EdgeIntersection>() { intersection });
+                        else
+                            edgeIntersections[e1].Add(intersection);
                     }
                 }
             }
